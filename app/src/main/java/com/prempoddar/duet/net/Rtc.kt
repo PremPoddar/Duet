@@ -133,6 +133,7 @@ class RtcPeer(context: Context, linkId: String, private val events: RtcEvents) {
 
     fun answer(remoteOffer: String, onSdp: (String) -> Unit) {
         pc.setRemoteDescription(set {
+            remoteReady()
             pc.createAnswer(created { desc ->
                 pc.setLocalDescription(set { }, desc)
                 onSdp(desc.description)
@@ -140,10 +141,22 @@ class RtcPeer(context: Context, linkId: String, private val events: RtcEvents) {
         }, SessionDescription(SessionDescription.Type.OFFER, remoteOffer))
     }
 
-    fun acceptAnswer(remoteAnswer: String) = pc.setRemoteDescription(set { }, SessionDescription(SessionDescription.Type.ANSWER, remoteAnswer))
+    fun acceptAnswer(remoteAnswer: String) = pc.setRemoteDescription(set { remoteReady() }, SessionDescription(SessionDescription.Type.ANSWER, remoteAnswer))
 
-    fun addIce(mid: String, index: Int, candidate: String) {
-        pc.addIceCandidate(IceCandidate(mid, index, candidate))
+    // Candidates can arrive before the offer/answer they belong to has been applied; WebRTC would
+    // drop them, so they wait here.
+    private val earlyIce = ArrayList<IceCandidate>()
+    private var remoteSet = false
+
+    @Synchronized fun addIce(mid: String, index: Int, candidate: String) {
+        val c = IceCandidate(mid, index, candidate)
+        if (remoteSet) pc.addIceCandidate(c) else earlyIce += c
+    }
+
+    @Synchronized private fun remoteReady() {
+        remoteSet = true
+        earlyIce.forEach { pc.addIceCandidate(it) }
+        earlyIce.clear()
     }
 
     @Synchronized private fun close(failed: Boolean) {
