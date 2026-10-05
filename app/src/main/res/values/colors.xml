@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="duet_window_background">#F6EFE6</color>
+    <color name="duet_launcher_background">#C8553D</color>
+</resources>
