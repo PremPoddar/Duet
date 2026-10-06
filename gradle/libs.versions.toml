@@ -1,4 +1,5 @@
 [versions]
+robolectric = "4.14.1"
 materialColor = "2.0.0"
 agp = "8.9.2"
 kotlin = "2.1.0"
@@ -20,6 +21,9 @@ junit = "4.13.2"
 truth = "1.4.4"
 
 [libraries]
+robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
+androidx-compose-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
+androidx-compose-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
 material-color-utilities = { group = "com.materialkolor", name = "material-color-utilities-android", version.ref = "materialColor" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 androidx-lifecycle-runtime-compose = { group = "androidx.lifecycle", name = "lifecycle-runtime-compose", version.ref = "lifecycle" }

@@ -7,6 +7,7 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
@@ -83,6 +84,10 @@ fun AppTheme(appearance: Appearance, brand: Int, typography: Typography, content
         onDispose { }
     }
     CompositionLocalProvider(LocalAppearance provides appearance) {
-        MaterialTheme(colorScheme = scheme, typography = typography, shapes = ExpressiveShapes, content = content)
+        MaterialTheme(colorScheme = scheme, typography = typography, shapes = ExpressiveShapes) {
+            // Text and icons drawn outside a Surface would otherwise default to black, which
+            // vanishes in dark mode. Give everything the theme's text colour by default.
+            CompositionLocalProvider(LocalContentColor provides scheme.onSurface, content = content)
+        }
     }
 }
