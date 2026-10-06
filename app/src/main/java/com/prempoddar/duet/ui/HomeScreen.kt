@@ -53,6 +53,8 @@ fun HomeScreen(settings: DuetSettings, onJoin: () -> Unit, onSettings: () -> Uni
     val nearby by sessions.nearby.collectAsStateWithLifecycle()
     val phase by sessions.phase.collectAsStateWithLifecycle()
     var askName by remember { mutableStateOf<((String) -> Unit)?>(null) }
+    // Owned by the screen, not the dialog: closing the dialog must not cancel what it started.
+    val scope = rememberCoroutineScope()
     DisposableEffect(Unit) {
         sessions.browseNearby()
         onDispose { sessions.stopBrowsing() }
@@ -106,7 +108,6 @@ fun HomeScreen(settings: DuetSettings, onJoin: () -> Unit, onSettings: () -> Uni
         else -> Unit
     }
     askName?.let { then ->
-        val scope = rememberCoroutineScope()
         NameDialog(onDone = { name ->
             askName = null
             scope.launch {
