@@ -1,5 +1,12 @@
 package com.prempoddar.duet.ui
 
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material.icons.rounded.Headphones
+import com.prempoddar.duet.ui.design.TonalBigButton
+import com.prempoddar.duet.ui.design.PillTextField
+import com.prempoddar.duet.ui.design.BigButton
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -64,17 +71,17 @@ fun JoinScreen(settings: DuetSettings, initial: String, onBack: () -> Unit) {
     val insets = WindowInsets.safeDrawing.asPaddingValues()
 
     WarmBackground(warm.brick) {
-        Column(Modifier.fillMaxSize().imePadding().padding(top = insets.calculateTopPadding()).padding(horizontal = 24.dp)) {
+        Column(Modifier.fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(top = insets.calculateTopPadding()).padding(horizontal = 24.dp).widthIn(max = 560.dp)) {
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back") }
             Text("Join a session", style = MaterialTheme.typography.headlineMedium)
             Text(
                 "Type the six words from the person hosting, or scan their code.",
                 style = MaterialTheme.typography.bodyMedium, color = warm.muted, modifier = Modifier.padding(top = 6.dp, bottom = 20.dp),
             )
-            OutlinedTextField(
-                text, { text = it.take(120) }, label = { Text("Six words") }, minLines = 2,
+            PillTextField(
+                text, { text = it.take(120) }, "Six words", singleLine = false, minLines = 2,
+                supporting = "The first four letters of each word are enough",
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None, imeAction = ImeAction.Done, autoCorrectEnabled = false),
-                modifier = Modifier.fillMaxWidth(),
             )
             // Each word turns brick once it's recognised; the first four letters are enough.
             FlowRow(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -83,24 +90,18 @@ fun JoinScreen(settings: DuetSettings, initial: String, onBack: () -> Unit) {
                     Text(
                         word ?: t,
                         style = MaterialTheme.typography.labelLarge,
-                        color = if (word != null) MaterialTheme.colorScheme.onPrimary else warm.muted,
-                        modifier = Modifier.clip(CircleShape).background(if (word != null) warm.brick else MaterialTheme.colorScheme.surfaceVariant)
+                        color = if (word != null) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.clip(CircleShape).background(if (word != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHighest)
                             .padding(horizontal = 12.dp, vertical = 6.dp),
                     )
                 }
             }
             if (settings.name.isBlank()) {
-                OutlinedTextField(name, { name = it.take(32) }, label = { Text("Your name") }, singleLine = true, modifier = Modifier.fillMaxWidth().padding(top = 16.dp))
+                PillTextField(name, { name = it.take(32) }, "Your name", modifier = Modifier.padding(top = 16.dp), keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words))
             }
-            Spacer(Modifier.weight(1f))
-            Row(Modifier.fillMaxWidth().padding(bottom = 24.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedButton(onClick = {
-                    scan.launch(ScanOptions().setDesiredBarcodeFormats(ScanOptions.QR_CODE).setPrompt("Scan the Duet code").setBeepEnabled(false).setOrientationLocked(true))
-                }, modifier = Modifier.height(54.dp)) {
-                    Icon(Icons.Rounded.QrCodeScanner, null); Text("  Scan")
-                }
-                Button(
-                    enabled = code != null && name.isNotBlank(),
+            Column(Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                BigButton(
+                    "Join", enabled = code != null && name.isNotBlank(), icon = Icons.Rounded.Headphones,
                     onClick = {
                         scope.launch {
                             if (settings.name.isBlank()) AppGraph.settings.update { it.copy(name = name.trim()) }
@@ -108,8 +109,10 @@ fun JoinScreen(settings: DuetSettings, initial: String, onBack: () -> Unit) {
                             AppGraph.sessions.join(code!!, name.trim())
                         }
                     },
-                    modifier = Modifier.weight(1f).height(54.dp),
-                ) { Text("Join") }
+                )
+                TonalBigButton("Scan their code", icon = Icons.Rounded.QrCodeScanner, onClick = {
+                    scan.launch(ScanOptions().setDesiredBarcodeFormats(ScanOptions.QR_CODE).setPrompt("Scan the Duet code").setBeepEnabled(false).setOrientationLocked(true))
+                })
             }
         }
     }

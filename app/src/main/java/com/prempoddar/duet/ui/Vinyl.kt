@@ -1,5 +1,6 @@
 package com.prempoddar.duet.ui
 
+import androidx.compose.material3.MaterialTheme
 import android.graphics.BitmapFactory
 import android.util.Base64
 import androidx.compose.animation.core.animateFloatAsState
@@ -97,7 +98,7 @@ fun Vinyl(art: ImageBitmap?, playing: Boolean, label: String, modifier: Modifier
                 if (art != null) {
                     Image(art, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
                 } else {
-                    Text(label.take(1).uppercase(), fontFamily = Fraunces, fontSize = (size.value * 0.12f).sp, color = Color(0xFFF6EFE6))
+                    Text(label.take(1).uppercase(), fontFamily = Fraunces, fontSize = (size.value * 0.12f).sp, color = MaterialTheme.colorScheme.onPrimary)
                 }
             }
             Box(Modifier.size(size * 0.03f).clip(CircleShape).background(warm.paper))

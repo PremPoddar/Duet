@@ -1,12 +1,7 @@
 package com.prempoddar.duet.ui
 
-import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
@@ -17,19 +12,23 @@ import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.prempoddar.duet.R
-import com.prempoddar.duet.data.ThemeMode
+import com.prempoddar.duet.ui.design.AppTheme
+import com.prempoddar.duet.ui.design.Appearance
+import com.prempoddar.duet.ui.design.isDark
 
-/** Warm paper, brick and amber — a living room in the evening. */
+/**
+ * Duet's named colours, taken from the theme's colour roles so they follow light, dark, black,
+ * the chosen accent and the wallpaper — and always contrast with what they sit on.
+ */
 data class Warm(val paper: Color, val card: Color, val ink: Color, val muted: Color, val brick: Color, val amber: Color, val record: Color, val dark: Boolean)
 
-private val LightWarm = Warm(Color(0xFFF6EFE6), Color(0xFFFFF8F0), Color(0xFF2B1E16), Color(0xFF7A6556), Color(0xFFC8553D), Color(0xFFD9922E), Color(0xFF1C1512), false)
-private val DarkWarm = Warm(Color(0xFF17110D), Color(0xFF221A15), Color(0xFFF2E6D8), Color(0xFFB19E8C), Color(0xFFE07A5F), Color(0xFFF0B45A), Color(0xFF0E0A08), true)
+/** Duet's own colour: brick, a living room in the evening. */
+const val DUET_BRAND = 0xC8553D
 
-val LocalWarm = staticCompositionLocalOf { LightWarm }
+val LocalWarm = staticCompositionLocalOf { Warm(Color.White, Color.White, Color.Black, Color.Gray, Color.Red, Color.Yellow, Color.Black, false) }
 
 @OptIn(ExperimentalTextApi::class)
 private fun fraunces(w: Int) = Font(
@@ -61,31 +60,16 @@ private val Type = Typography(
 )
 
 @Composable
-fun isDark(mode: ThemeMode) = when (mode) {
-    ThemeMode.SYSTEM -> isSystemInDarkTheme()
-    ThemeMode.LIGHT -> false
-    ThemeMode.DARK -> true
-}
-
-@Composable
-fun DuetTheme(mode: ThemeMode, content: @Composable () -> Unit) {
-    val w = if (isDark(mode)) DarkWarm else LightWarm
-    val scheme = if (w.dark) {
-        darkColorScheme(
-            primary = w.brick, onPrimary = Color(0xFF2A0F08), primaryContainer = Color(0xFF4A2A20), onPrimaryContainer = w.ink,
-            secondary = w.amber, background = w.paper, onBackground = w.ink, surface = w.card, onSurface = w.ink,
-            surfaceVariant = Color(0xFF2C221C), onSurfaceVariant = w.muted, surfaceContainer = w.card, surfaceContainerHigh = Color(0xFF2C221C),
-            surfaceContainerLow = w.card, outline = Color(0xFF4A3B31), outlineVariant = Color(0xFF332820),
+fun DuetTheme(appearance: Appearance, content: @Composable () -> Unit) {
+    AppTheme(appearance, DUET_BRAND, Type) {
+        val c = MaterialTheme.colorScheme
+        val dark = isDark(appearance)
+        val warm = Warm(
+            paper = c.surface, card = c.surfaceContainer, ink = c.onSurface, muted = c.onSurfaceVariant,
+            brick = c.primary, amber = c.tertiary,
+            // The record stays black vinyl in every theme.
+            record = Color(0xFF1C1512), dark = dark,
         )
-    } else {
-        lightColorScheme(
-            primary = w.brick, onPrimary = Color.White, primaryContainer = Color(0xFFF6D8CC), onPrimaryContainer = Color(0xFF4A1A0F),
-            secondary = w.amber, background = w.paper, onBackground = w.ink, surface = w.card, onSurface = w.ink,
-            surfaceVariant = Color(0xFFEDE2D5), onSurfaceVariant = w.muted, surfaceContainer = w.card, surfaceContainerHigh = Color(0xFFF2E8DC),
-            surfaceContainerLow = w.card, outline = Color(0xFFD7C7B7), outlineVariant = Color(0xFFE6D9CB),
-        )
-    }
-    CompositionLocalProvider(LocalWarm provides w) {
-        MaterialTheme(scheme, typography = Type, shapes = Shapes(small = RoundedCornerShape(12.dp), medium = RoundedCornerShape(20.dp), large = RoundedCornerShape(28.dp)), content = content)
+        CompositionLocalProvider(LocalWarm provides warm, content = content)
     }
 }

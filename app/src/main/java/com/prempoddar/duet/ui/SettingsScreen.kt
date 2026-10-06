@@ -2,107 +2,121 @@ package com.prempoddar.duet.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Bluetooth
+import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.Headphones
+import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material.icons.rounded.Speaker
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.prempoddar.duet.AppGraph
 import com.prempoddar.duet.data.DuetSettings
 import com.prempoddar.duet.data.Output
-import com.prempoddar.duet.data.ThemeMode
+import com.prempoddar.duet.ui.design.ExpressiveScaffold
+import com.prempoddar.duet.ui.design.IconTile
+import com.prempoddar.duet.ui.design.PillTextField
+import com.prempoddar.duet.ui.design.SettingsGroup
+import com.prempoddar.duet.ui.design.SettingsRow
 import kotlinx.coroutines.launch
 
 @Composable
-fun SettingsScreen(onBack: () -> Unit) {
-    val warm = LocalWarm.current
+fun SettingsScreen(onBack: () -> Unit, onAppearance: () -> Unit, onAbout: () -> Unit) {
     val settings by AppGraph.settings.settings.collectAsStateWithLifecycle(DuetSettings())
     val output by AppGraph.player.output.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     fun update(f: (DuetSettings) -> DuetSettings) = scope.launch { AppGraph.settings.update(f) }
     var name by remember { mutableStateOf(settings.name) }
     LaunchedEffect(settings.name) { if (name.isBlank()) name = settings.name }
-    val insets = WindowInsets.safeDrawing.asPaddingValues()
 
-    Column(
-        Modifier.fillMaxSize().background(warm.paper).verticalScroll(rememberScrollState())
-            .padding(top = insets.calculateTopPadding(), bottom = insets.calculateBottomPadding() + 24.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back") }
-            Text("Settings", style = MaterialTheme.typography.headlineSmall)
-        }
-        Card("Your name") {
-            OutlinedTextField(name, { name = it.take(32); if (it.isNotBlank()) update { s -> s.copy(name = it.trim().take(32)) } }, singleLine = true, modifier = Modifier.fillMaxWidth())
-        }
-        Card("Appearance") {
-            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-                val options = listOf(ThemeMode.SYSTEM to "System", ThemeMode.LIGHT to "Light", ThemeMode.DARK to "Dark")
-                options.forEachIndexed { i, (m, l) -> SegmentedButton(settings.theme == m, { update { it.copy(theme = m) } }, SegmentedButtonDefaults.itemShape(i, options.size)) { Text(l) } }
+    ExpressiveScaffold("Settings", onBack = onBack) { pad ->
+        LazyColumn(contentPadding = PaddingValues(top = pad.calculateTopPadding(), bottom = pad.calculateBottomPadding() + 32.dp)) {
+            item {
+                Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                    PillTextField(
+                        name, { name = it.take(32); if (it.isNotBlank()) update { s -> s.copy(name = it.trim().take(32)) } }, "Your name",
+                        supporting = "What others see in a session", clearable = false,
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
+                    )
+                }
+            }
+            item {
+                SettingsGroup("General") {
+                    SettingsRow("Appearance", "Theme, colours and black backgrounds", Icons.Rounded.Palette, onClick = onAppearance) { Chevron() }
+                }
+            }
+            item {
+                SettingsGroup("Sync nudge") {
+                    SettingsRow(
+                        "Line up your headphones",
+                        "Headphones and speakers add their own delay — Bluetooth most of all. If you hear the song slightly behind or ahead of the others, move the slider for that output until it lines up.",
+                    )
+                    Nudge("Phone speaker", Icons.Rounded.Speaker, settings.nudgeSpeaker, output == Output.SPEAKER) { v -> update { it.copy(nudgeSpeaker = v) } }
+                    Nudge("Wired headphones", Icons.Rounded.Headphones, settings.nudgeWired, output == Output.WIRED) { v -> update { it.copy(nudgeWired = v) } }
+                    Nudge("Bluetooth", Icons.Rounded.Bluetooth, settings.nudgeBluetooth, output == Output.BLUETOOTH) { v -> update { it.copy(nudgeBluetooth = v) } }
+                }
+            }
+            item {
+                SettingsGroup("Privacy") {
+                    SettingsRow(
+                        "How Duet connects",
+                        "Phones connect to each other directly. To find each other across the internet they swap a few encrypted messages through a free public relay (HiveMQ); it only ever sees scrambled data, never your music. On the same Wi-Fi no internet is needed at all. Songs are deleted from listeners' phones when the session ends.",
+                        Icons.Rounded.Lock,
+                    )
+                }
+            }
+            item {
+                SettingsGroup("About") {
+                    SettingsRow("About Duet", "Version, licences", Icons.Rounded.Info, onClick = onAbout) { Chevron() }
+                }
             }
         }
-        Card("Sync nudge") {
-            Text(
-                "Headphones and speakers add their own delay — Bluetooth most of all. If you hear the song slightly behind (or ahead of) the others, move the slider for that kind of output until it lines up.",
-                style = MaterialTheme.typography.bodySmall, color = warm.muted,
-            )
-            Nudge("Phone speaker", settings.nudgeSpeaker, output == Output.SPEAKER) { v -> update { it.copy(nudgeSpeaker = v) } }
-            Nudge("Wired headphones", settings.nudgeWired, output == Output.WIRED) { v -> update { it.copy(nudgeWired = v) } }
-            Nudge("Bluetooth", settings.nudgeBluetooth, output == Output.BLUETOOTH) { v -> update { it.copy(nudgeBluetooth = v) } }
-        }
-        Card("How Duet connects") {
-            Text(
-                "Phones connect to each other directly. To find each other across the internet they swap a few encrypted messages through a free public relay (HiveMQ); it only ever sees scrambled data, never your music. On the same Wi-Fi no internet is needed at all. Songs are deleted from listeners' phones when the session ends.",
-                style = MaterialTheme.typography.bodySmall, color = warm.muted,
-            )
-        }
     }
 }
 
 @Composable
-private fun Card(title: String, content: @Composable () -> Unit) {
-    Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp).fillMaxWidth().clip(MaterialTheme.shapes.large).background(MaterialTheme.colorScheme.surface).padding(18.dp)) {
-        Text(title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(bottom = 10.dp))
-        content()
-    }
-}
+private fun Chevron() = Icon(Icons.Rounded.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
 
+/** One output's delay, in steps of 10 ms. */
 @Composable
-private fun Nudge(label: String, value: Int, active: Boolean, onChange: (Int) -> Unit) {
-    val warm = LocalWarm.current
-    var v by remember(value) { mutableStateOf(value.toFloat()) }
-    Column(Modifier.padding(top = 12.dp)) {
-        Row {
-            Text(label + if (active) " · in use" else "", style = MaterialTheme.typography.titleSmall, color = if (active) warm.brick else MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
-            Text("${if (v > 0) "+" else ""}${v.toInt()} ms", style = MaterialTheme.typography.labelMedium, color = warm.muted)
+private fun Nudge(label: String, icon: ImageVector, value: Int, active: Boolean, onChange: (Int) -> Unit) {
+    var v by remember(value) { mutableFloatStateOf(value.toFloat()) }
+    Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainer).padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 4.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconTile(icon)
+            Column(Modifier.weight(1f).padding(start = 16.dp)) {
+                Text(label, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+                Text(
+                    "${if (v > 0) "+" else ""}${v.toInt()} ms" + if (active) " · in use now" else "",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
-        Slider(v, { v = (it / 10).toInt() * 10f }, valueRange = -400f..400f, onValueChangeFinished = { onChange(v.toInt()) })
+        Slider(v, { v = (it / 10).toInt() * 10f }, valueRange = -400f..400f, onValueChangeFinished = { onChange(v.toInt()) }, modifier = Modifier.padding(start = 56.dp))
     }
 }

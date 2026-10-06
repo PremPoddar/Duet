@@ -1,5 +1,14 @@
 package com.prempoddar.duet.ui
 
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.BoxWithConstraints
+import com.prempoddar.duet.ui.design.PillTextField
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
@@ -129,8 +138,7 @@ fun SessionScreen(onAddSong: () -> Unit) {
     val insets = WindowInsets.safeDrawing.asPaddingValues()
     if (sheet == Sheet.CHAT) seenChat = chat.size
 
-    WarmBackground(glow) {
-        Column(Modifier.fillMaxSize().padding(top = insets.calculateTopPadding(), bottom = insets.calculateBottomPadding())) {
+    val header: @Composable () -> Unit = {
             Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 4.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("LISTENING TOGETHER", style = MaterialTheme.typography.labelSmall, color = warm.muted)
@@ -144,12 +152,15 @@ fun SessionScreen(onAddSong: () -> Unit) {
                 IconButton(onClick = { confirmLeave = true }) { Icon(Icons.Rounded.Close, "Leave") }
             }
 
-            Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+    }
+    val record: @Composable (Modifier) -> Unit = { m ->
+            Box(m, contentAlignment = Alignment.Center) {
                 Vinyl(art, playing = state.playing && track != null, label = track?.title ?: "♥", modifier = Modifier.fillMaxWidth(0.8f))
                 FloatingReactions()
                 HeartPulse()
             }
-
+    }
+    val controls: @Composable () -> Unit = {
             Column(Modifier.fillMaxWidth().padding(horizontal = 28.dp)) {
                 if (track == null) {
                     Text("Nothing's playing yet", style = MaterialTheme.typography.headlineMedium, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
@@ -172,7 +183,7 @@ fun SessionScreen(onAddSong: () -> Unit) {
                             kotlin.math.abs(drift) < 40 -> "In sync"
                             else -> "Catching up…"
                         },
-                        style = MaterialTheme.typography.labelMedium, color = if (!have) warm.amber else warm.brick, modifier = Modifier.padding(top = 6.dp),
+                        style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 6.dp),
                     )
                     Slider(
                         value = dragging ?: (position.toFloat() / track.durationMs.coerceAtLeast(1)).coerceIn(0f, 1f),
@@ -190,12 +201,12 @@ fun SessionScreen(onAddSong: () -> Unit) {
                     IconButton(onClick = { session?.heart() }) { Icon(Icons.Rounded.Favorite, "Send a heartbeat", tint = warm.brick, modifier = Modifier.size(28.dp)) }
                     IconButton(enabled = track != null, onClick = { session?.command(Command.Previous) }) { Icon(Icons.Rounded.SkipPrevious, "Previous", Modifier.size(36.dp)) }
                     Box(
-                        Modifier.size(72.dp).clip(CircleShape).background(warm.brick).clickable(enabled = track != null) {
+                        Modifier.size(72.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary).clickable(enabled = track != null) {
                             session?.command(if (state.playing) Command.Pause else Command.Play)
                         },
                         contentAlignment = Alignment.Center,
                     ) {
-                        Icon(if (state.playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, if (state.playing) "Pause for everyone" else "Play for everyone", tint = Color.White, modifier = Modifier.size(38.dp))
+                        Icon(if (state.playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, if (state.playing) "Pause for everyone" else "Play for everyone", tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(38.dp))
                     }
                     IconButton(enabled = track != null, onClick = { session?.command(Command.Next) }) { Icon(Icons.Rounded.SkipNext, "Next", Modifier.size(36.dp)) }
                     ReactButton { session?.react(it) }
@@ -208,6 +219,25 @@ fun SessionScreen(onAddSong: () -> Unit) {
                         val unread = (chat.size - seenChat).coerceAtLeast(0)
                         Text(if (unread > 0) "  Chat · $unread" else "  Chat")
                     }
+                }
+            }
+    }
+    WarmBackground(glow) {
+        BoxWithConstraints(Modifier.fillMaxSize().padding(top = insets.calculateTopPadding(), bottom = insets.calculateBottomPadding())) {
+            if (maxWidth > maxHeight && maxWidth >= 560.dp) {
+                // Landscape: the record on the left, everything else beside it.
+                Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
+                    record(Modifier.weight(1f).fillMaxHeight().padding(16.dp))
+                    Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.Center) {
+                        header()
+                        controls()
+                    }
+                }
+            } else {
+                Column(Modifier.fillMaxSize()) {
+                    header()
+                    record(Modifier.fillMaxWidth().weight(1f))
+                    controls()
                 }
             }
         }
@@ -418,9 +448,10 @@ private fun ChatSheet() {
             }
         }
         Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            TextField(
-                text, { text = it.take(500) }, placeholder = { Text("Message") }, modifier = Modifier.weight(1f), shape = CircleShape,
-                colors = TextFieldDefaults.colors(focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent),
+            PillTextField(
+                text, { text = it.take(500) }, "Message", modifier = Modifier.weight(1f), clearable = false,
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Send),
+                keyboardActions = KeyboardActions(onSend = { if (text.isNotBlank()) { session?.say(text); text = "" } }),
             )
             IconButton(enabled = text.isNotBlank(), onClick = { session?.say(text); text = "" }) { Icon(Icons.AutoMirrored.Rounded.Send, "Send", tint = warm.brick) }
         }

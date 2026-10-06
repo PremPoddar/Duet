@@ -1,5 +1,13 @@
 package com.prempoddar.duet.ui
 
+import androidx.compose.runtime.rememberCoroutineScope
+import com.prempoddar.duet.R
+import com.prempoddar.duet.ui.design.AboutScreen
+import com.prempoddar.duet.ui.design.AppearanceScreen
+import com.prempoddar.duet.ui.design.Credit
+import com.prempoddar.duet.ui.design.LayeredIcon
+import kotlinx.coroutines.launch
+
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.Composable
@@ -43,6 +51,22 @@ fun DuetNav(settings: DuetSettings, linkCode: SessionCode?, onLinkUsed: () -> Un
         }
         composable("session") { SessionScreen(onAddSong = { nav.navigate("library") }) }
         composable("library") { LibraryScreen(onDone = { nav.popBackStack() }) }
-        composable("settings") { SettingsScreen(onBack = { nav.popBackStack() }) }
+        composable("settings") { SettingsScreen(onBack = { nav.popBackStack() }, onAppearance = { nav.navigate("appearance") }, onAbout = { nav.navigate("about") }) }
+        composable("appearance") {
+            val scope = rememberCoroutineScope()
+            AppearanceScreen(settings.appearance, DUET_BRAND, onChange = { a -> scope.launch { AppGraph.settings.update { it.copy(appearance = a) } } }, onBack = { nav.popBackStack() })
+        }
+        composable("about") {
+            AboutScreen(
+                "Duet", "Same song, same moment — wherever you both are.",
+                icon = { LayeredIcon(R.drawable.ic_launcher_background, R.drawable.ic_launcher_foreground) },
+                credits = listOf(
+                    Credit("WebRTC (Stream build)", "BSD licence"), Credit("HiveMQ MQTT client", "Apache 2.0"),
+                    Credit("Media3 ExoPlayer", "Apache 2.0"), Credit("ZXing", "Apache 2.0"),
+                    Credit("Fraunces and DM Sans", "SIL Open Font License"), Credit("BIP-39 word list", "MIT"),
+                ),
+                onBack = { nav.popBackStack() },
+            )
+        }
     }
 }

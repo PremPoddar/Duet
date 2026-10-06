@@ -2,6 +2,8 @@ package com.prempoddar.duet.data
 
 import android.content.Context
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import com.prempoddar.duet.ui.design.Appearance
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -10,14 +12,12 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
-enum class ThemeMode { SYSTEM, LIGHT, DARK }
-
 /** Where sound comes out; each has its own delay, Bluetooth most of all. */
 enum class Output { SPEAKER, WIRED, BLUETOOTH }
 
 data class DuetSettings(
     val name: String = "",
-    val theme: ThemeMode = ThemeMode.SYSTEM,
+    val appearance: Appearance = Appearance(),
     val nudgeSpeaker: Int = 0,
     val nudgeWired: Int = 0,
     val nudgeBluetooth: Int = 180,
@@ -35,6 +35,9 @@ class SettingsRepository(private val context: Context) {
     private object K {
         val name = stringPreferencesKey("name")
         val theme = stringPreferencesKey("theme")
+        val dynamic = booleanPreferencesKey("dynamic")
+        val accent = intPreferencesKey("accent")
+        val black = booleanPreferencesKey("pure_black")
         val speaker = intPreferencesKey("nudge_speaker")
         val wired = intPreferencesKey("nudge_wired")
         val bt = intPreferencesKey("nudge_bt")
@@ -46,7 +49,9 @@ class SettingsRepository(private val context: Context) {
     suspend fun update(f: (DuetSettings) -> DuetSettings) {
         context.dataStore.edit { p ->
             val n = f(p.toSettings())
-            p[K.name] = n.name; p[K.theme] = n.theme.name
+            p[K.name] = n.name; p[K.theme] = n.appearance.mode.name
+            p[K.dynamic] = n.appearance.dynamic; p[K.black] = n.appearance.pureBlack
+            n.appearance.accent?.let { p[K.accent] = it } ?: p.remove(K.accent)
             p[K.speaker] = n.nudgeSpeaker; p[K.wired] = n.nudgeWired; p[K.bt] = n.nudgeBluetooth
         }
     }
@@ -55,7 +60,12 @@ class SettingsRepository(private val context: Context) {
         val d = DuetSettings()
         return DuetSettings(
             name = this[K.name] ?: d.name,
-            theme = this[K.theme]?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() } ?: d.theme,
+            appearance = Appearance(
+                mode = this[K.theme]?.let { runCatching { Appearance.Mode.valueOf(it) }.getOrNull() } ?: Appearance.Mode.SYSTEM,
+                dynamic = this[K.dynamic] ?: false,
+                accent = this[K.accent],
+                pureBlack = this[K.black] ?: false,
+            ),
             nudgeSpeaker = this[K.speaker] ?: d.nudgeSpeaker,
             nudgeWired = this[K.wired] ?: d.nudgeWired,
             nudgeBluetooth = this[K.bt] ?: d.nudgeBluetooth,

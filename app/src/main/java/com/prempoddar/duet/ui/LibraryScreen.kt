@@ -1,5 +1,9 @@
 package com.prempoddar.duet.ui
 
+import androidx.compose.material.icons.rounded.Search
+import com.prempoddar.duet.ui.design.PillTextField
+import com.prempoddar.duet.ui.design.EmptyState
+import com.prempoddar.duet.ui.design.BigButton
 import android.Manifest
 import android.net.Uri
 import android.os.Build
@@ -65,7 +69,6 @@ private val audioPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.T
 @Composable
 fun LibraryScreen(onDone: () -> Unit) {
     val context = LocalContext.current
-    val warm = LocalWarm.current
     val scope = rememberCoroutineScope()
     var granted by remember { mutableStateOf(ContextCompat.checkSelfPermission(context, audioPermission) == android.content.pm.PackageManager.PERMISSION_GRANTED) }
     val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted = it }
@@ -88,33 +91,28 @@ fun LibraryScreen(onDone: () -> Unit) {
     val pickFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(::add) }
     val insets = WindowInsets.safeDrawing.asPaddingValues()
 
-    Column(Modifier.fillMaxSize().background(warm.paper).padding(top = insets.calculateTopPadding())) {
+    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface).padding(top = insets.calculateTopPadding())) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onDone) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back") }
-            Text("Add a song", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
+            Text("Add a song", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
             IconButton(onClick = { pickFile.launch(arrayOf("audio/*")) }) { Icon(Icons.Rounded.FolderOpen, "Pick another file") }
         }
         if (!granted) {
             Column(Modifier.padding(24.dp)) {
-                Text("Duet needs to see the music on this phone to list it.", style = MaterialTheme.typography.bodyLarge)
-                Button(onClick = { ask.launch(audioPermission) }, modifier = Modifier.padding(top = 16.dp)) { Text("Allow access to music") }
-                Text("Or pick a single file with the folder button above.", style = MaterialTheme.typography.bodySmall, color = warm.muted, modifier = Modifier.padding(top = 12.dp))
+                Text("Duet needs to see the music on this phone to list it.", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
+                BigButton("Allow access to music", onClick = { ask.launch(audioPermission) }, modifier = Modifier.padding(top = 16.dp), icon = Icons.Rounded.MusicNote)
+                Text("Or pick a single file with the folder button above.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 12.dp))
             }
             return@Column
         }
-        TextField(
-            query, { query = it }, placeholder = { Text("Search your music") }, singleLine = true,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-            shape = MaterialTheme.shapes.medium,
-            colors = TextFieldDefaults.colors(
-                focusedContainerColor = MaterialTheme.colorScheme.surface, unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                focusedIndicatorColor = MaterialTheme.colorScheme.surface, unfocusedIndicatorColor = MaterialTheme.colorScheme.surface,
-            ),
+        PillTextField(
+            query, { query = it }, "Search your music", modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            leading = Icons.Rounded.Search,
         )
         val list = songs
         when {
             list == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-            list.isEmpty() -> Text("No music found on this phone. Use the folder button to pick a file.", modifier = Modifier.padding(24.dp))
+            list.isEmpty() -> EmptyState(Icons.Rounded.MusicNote, "No music found", "Use the folder button at the top to pick a song file.")
             else -> LazyColumn(contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = insets.calculateBottomPadding() + 16.dp)) {
                 val q = query.trim().lowercase()
                 items(list.filter { q.isEmpty() || it.title.lowercase().contains(q) || it.artist.lowercase().contains(q) || it.album.lowercase().contains(q) }, key = { it.uri }) { song ->
@@ -124,16 +122,16 @@ fun LibraryScreen(onDone: () -> Unit) {
                     ) {
                         val thumb by produceState<ImageBitmap?>(null, song.uri) { value = withContext(Dispatchers.IO) { Library.thumbnail(context, song.uri)?.asImageBitmap() } }
                         Box(Modifier.size(52.dp).clip(MaterialTheme.shapes.small).background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
-                            thumb?.let { Image(it, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize()) } ?: Icon(Icons.Rounded.MusicNote, null, tint = warm.muted)
+                            thumb?.let { Image(it, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize()) } ?: Icon(Icons.Rounded.MusicNote, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         Spacer(Modifier.width(14.dp))
                         Column(Modifier.weight(1f)) {
                             Text(song.title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(listOf(song.artist, song.album).filter { it.isNotBlank() }.joinToString(" · ").ifEmpty { "Unknown artist" },
-                                style = MaterialTheme.typography.bodySmall, color = warm.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                         if (adding == song.uri) CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
-                        else Text(time(song.durationMs), style = MaterialTheme.typography.bodySmall, color = warm.muted)
+                        else Text(time(song.durationMs), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
