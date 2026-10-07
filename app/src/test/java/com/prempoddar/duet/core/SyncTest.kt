@@ -32,14 +32,4 @@ class SyncTest {
         assertThat(ClockSync().offset).isNull()
     }
 
-    @Test fun driftDecisions() {
-        assertThat(Drift.decide(target = 10_000, actual = 10_005)).isEqualTo(Drift.Action.Rate(1f))
-        val behind = Drift.decide(target = 10_040, actual = 10_000) as Drift.Action.Rate
-        assertThat(behind.speed).isWithin(0.0001f).of(1.02f)
-        val slightlyBehind = Drift.decide(target = 10_020, actual = 10_000) as Drift.Action.Rate
-        assertThat(slightlyBehind.speed).isWithin(0.0001f).of(1.02f)
-        val ahead = Drift.decide(target = 10_000, actual = 10_018) as Drift.Action.Rate
-        assertThat(ahead.speed).isWithin(0.0001f).of(0.982f)
-        assertThat(Drift.decide(target = 12_000, actual = 10_000)).isEqualTo(Drift.Action.Seek(12_000))
-    }
 }

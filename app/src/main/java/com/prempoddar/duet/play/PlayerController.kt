@@ -14,7 +14,6 @@ import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import com.prempoddar.duet.core.Command
-import com.prempoddar.duet.core.Drift
 import com.prempoddar.duet.data.DuetSettings
 import com.prempoddar.duet.data.Output
 import com.prempoddar.duet.session.SessionManager
@@ -36,6 +35,7 @@ class PlayerController(private val context: Context, private val sessions: Sessi
     private var loaded: String? = null
     private var endedSent: String? = null
     private var lastSpeed = 1f
+    private val sync = com.prempoddar.duet.core.SyncController { android.os.SystemClock.elapsedRealtime() }
     @Volatile var settings = DuetSettings()
 
     private val _drift = MutableStateFlow(0L)
@@ -91,7 +91,7 @@ class PlayerController(private val context: Context, private val sessions: Sessi
         val target = st.positionAt(session.hostNow()) + nudge
         if (!st.playing) {
             if (player.isPlaying) player.pause()
-            if (kotlin.math.abs(player.currentPosition - target) > Drift.SEEK_OVER_MS) player.seekTo(target.coerceAtLeast(0))
+            if (kotlin.math.abs(player.currentPosition - target) > com.prempoddar.duet.core.SyncController.SEEK_OVER_MS) player.seekTo(target.coerceAtLeast(0))
             setSpeed(1f)
             _drift.value = 0
             return
@@ -104,18 +104,22 @@ class PlayerController(private val context: Context, private val sessions: Sessi
             return
         }
         if (!player.isPlaying) {
-            player.seekTo(target.coerceAtLeast(0))
+            // Start a little ahead: sound comes out a moment after play() is called.
+            setSpeed(1f)
+            player.seekTo((target + sync.startLeadMs).coerceAtLeast(0))
             player.play()
+            sync.started()
             return
         }
-        _drift.value = target - player.currentPosition
-        when (val a = Drift.decide(target, player.currentPosition)) {
-            is Drift.Action.Rate -> setSpeed(a.speed)
-            is Drift.Action.Seek -> {
+        when (val a = sync.step(target, player.currentPosition)) {
+            com.prempoddar.duet.core.SyncController.Action.None -> Unit
+            is com.prempoddar.duet.core.SyncController.Action.Speed -> setSpeed(a.speed)
+            is com.prempoddar.duet.core.SyncController.Action.Seek -> {
                 setSpeed(1f)
-                player.seekTo(a.positionMs)
+                player.seekTo((target + a.aheadMs).coerceAtLeast(0))
             }
         }
+        _drift.value = sync.drift
     }
 
     private fun setSpeed(speed: Float) {
