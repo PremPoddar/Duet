@@ -109,14 +109,22 @@ class LanHost(
         runCatching { socket.close() }
     }
 
+    // Called from a button press: the socket is written off the main thread, where Android
+    // forbids network use.
     fun approve(request: PairRequest) {
         val conn = conns[request.id] ?: return
-        val approval = Pairing.approve(conn.pairKey ?: return, code)
-        conn.out.println(LanFrame.PairApproved(b64(approval.hostKey), b64(approval.sealedCode)).line())
+        val pairKey = conn.pairKey ?: return
+        scope.launch(Dispatchers.IO) {
+            runCatching {
+                val approval = Pairing.approve(pairKey, code)
+                conn.out.println(LanFrame.PairApproved(b64(approval.hostKey), b64(approval.sealedCode)).line())
+            }
+        }
     }
 
     fun deny(request: PairRequest) {
-        conns[request.id]?.out?.println(LanFrame.PairDenied.line())
+        val conn = conns[request.id] ?: return
+        scope.launch(Dispatchers.IO) { runCatching { conn.out.println(LanFrame.PairDenied.line()) } }
     }
 
     /** True if [peer] reached us over the local network (so signals go back the same way). */
