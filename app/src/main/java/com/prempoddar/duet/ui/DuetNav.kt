@@ -66,6 +66,11 @@ fun DuetNav(settings: DuetSettings, linkCode: SessionCode?, onLinkUsed: () -> Un
                     Credit("Fraunces and DM Sans", "SIL Open Font License"), Credit("BIP-39 word list", "MIT"),
                 ),
                 onBack = { nav.popBackStack() },
+                notes = listOf(
+                    "How Duet connects" to "Phones connect to each other directly. To find each other across the internet they swap a few encrypted messages through a free public relay (HiveMQ); it only ever sees scrambled data, never your music.",
+                    "On the same Wi-Fi" to "No internet is needed at all: phones find each other and play straight from one another.",
+                    "Your songs" to "Songs are copied to listeners only for the session and deleted from their phones when it ends.",
+                ),
             )
         }
     }

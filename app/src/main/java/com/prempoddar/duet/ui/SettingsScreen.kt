@@ -81,17 +81,8 @@ fun SettingsScreen(onBack: () -> Unit, onAppearance: () -> Unit, onAbout: () -> 
                 }
             }
             item {
-                SettingsGroup("Privacy") {
-                    SettingsRow(
-                        "How Duet connects",
-                        "Phones connect to each other directly. To find each other across the internet they swap a few encrypted messages through a free public relay (HiveMQ); it only ever sees scrambled data, never your music. On the same Wi-Fi no internet is needed at all. Songs are deleted from listeners' phones when the session ends.",
-                        Icons.Rounded.Lock,
-                    )
-                }
-            }
-            item {
                 SettingsGroup("About") {
-                    SettingsRow("About Duet", "Version, licences", Icons.Rounded.Info, onClick = onAbout) { Chevron() }
+                    SettingsRow("About Duet", "Privacy, version, licences", Icons.Rounded.Info, onClick = onAbout) { Chevron() }
                 }
             }
         }
