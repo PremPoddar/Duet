@@ -27,6 +27,12 @@ data class DuetSettings(
         Output.WIRED -> nudgeWired
         Output.BLUETOOTH -> nudgeBluetooth
     }
+
+    fun withNudge(o: Output, ms: Int) = when (o) {
+        Output.SPEAKER -> copy(nudgeSpeaker = ms)
+        Output.WIRED -> copy(nudgeWired = ms)
+        Output.BLUETOOTH -> copy(nudgeBluetooth = ms)
+    }
 }
 
 private val Context.dataStore by preferencesDataStore("settings")

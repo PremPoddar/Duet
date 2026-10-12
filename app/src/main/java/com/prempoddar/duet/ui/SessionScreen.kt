@@ -185,6 +185,7 @@ fun SessionScreen(onAddSong: () -> Unit) {
                         },
                         style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 6.dp),
                     )
+                    if (session != null && !session.isHost && have) EarMatch(session, state.playing)
                     Slider(
                         value = dragging ?: (position.toFloat() / track.durationMs.coerceAtLeast(1)).coerceIn(0f, 1f),
                         onValueChange = { dragging = it },
@@ -455,5 +456,48 @@ private fun ChatSheet() {
             )
             IconButton(enabled = text.isNotBlank(), onClick = { session?.say(text); text = "" }) { Icon(Icons.AutoMirrored.Rounded.Send, "Send", tint = warm.brick) }
         }
+    }
+}
+
+/**
+ * "Match by ear": the phones tick in turn and this one listens, then nudges its sound so both
+ * phones come out together, whatever their speakers or Bluetooth add. The music pauses for the
+ * few seconds it takes.
+ */
+@Composable
+private fun EarMatch(session: com.prempoddar.duet.core.Session, playing: Boolean) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = rememberCoroutineScope()
+    var busy by remember { mutableStateOf(false) }
+    var note by remember { mutableStateOf<String?>(null) }
+    fun run() {
+        busy = true; note = "Listening… keep the phones close and quiet"
+        scope.launch {
+            val wasPlaying = playing
+            if (wasPlaying) { session.command(Command.Pause); kotlinx.coroutines.delay(700) }
+            val player = AppGraph.player
+            val output = player.output.value
+            val before = player.settings.nudge(output)
+            val late = runCatching { com.prempoddar.duet.play.EarCheck.measure(session, before.toLong()) }.getOrNull()
+            note = if (late == null) {
+                "Couldn't hear both phones clearly. Put them side by side somewhere quiet and try again."
+            } else {
+                val after = (before + late).toInt().coerceIn(-500, 800)
+                AppGraph.settings.update { it.withNudge(output, after) }
+                if (kotlin.math.abs(late) < 8) "Already matched: within ${kotlin.math.abs(late)} ms." else "Matched: this phone was ${kotlin.math.abs(late)} ms ${if (late > 0) "behind" else "ahead"}. Fixed."
+            }
+            if (wasPlaying) session.command(Command.Play)
+            busy = false
+        }
+    }
+    val ask = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { ok ->
+        if (ok) run() else note = "Duet needs the microphone for a few seconds to hear both phones."
+    }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        TextButton(enabled = !busy, onClick = {
+            if (androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED) run()
+            else ask.launch(android.Manifest.permission.RECORD_AUDIO)
+        }) { Text(if (busy) "Listening…" else "Match by ear") }
+        note?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f)) }
     }
 }

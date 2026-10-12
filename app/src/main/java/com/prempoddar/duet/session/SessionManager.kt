@@ -300,6 +300,10 @@ class SessionManager(private val context: Context) {
             }
             is SessionEvent.Progress -> _progress.value = _progress.value + (e.trackId to e.fraction)
             is SessionEvent.Ended -> end(e.reason)
+            // Ticks come out as early as the music does, so they show where the music really is.
+            is SessionEvent.Ticks -> com.prempoddar.duet.play.TickPlayer.play(
+                e.at, com.prempoddar.duet.core.EarSync.HOST_HZ, com.prempoddar.duet.AppGraph.player.let { it.settings.nudge(it.output.value) }.toLong(),
+            )
         }
     }
 

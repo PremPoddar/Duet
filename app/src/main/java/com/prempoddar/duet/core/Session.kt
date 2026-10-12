@@ -30,6 +30,8 @@ sealed interface SessionEvent {
     data class Heart(val from: String, val name: String) : SessionEvent
     data class Progress(val trackId: String, val fraction: Float) : SessionEvent
     data class Ended(val reason: String) : SessionEvent
+    /** Play ticks at these times of this phone's clock, for a guest matching by ear. */
+    data class Ticks(val at: List<Long>) : SessionEvent
 }
 
 /** What the UI and player use, whichever side of the session this phone is on. */
@@ -48,6 +50,8 @@ interface Session {
     fun addTrack(meta: TrackMeta)
     fun tick()
     fun leave()
+    /** Guests: ask the host to tick at these host times. */
+    fun requestTicks(at: List<Long>) {}
 }
 
 /** Sends files over links a piece at a time, never letting a link's buffer grow past [limit]. */
@@ -149,6 +153,7 @@ class HostSession(
                 guest.have += msg.trackId
                 membersChanged()
             }
+            is Msg.Ticks -> events(SessionEvent.Ticks(msg.at.take(EarSync.TICKS * 2)))
             is Msg.Bye -> onClosed(link)
             else -> Unit
         }
@@ -323,6 +328,7 @@ class GuestSession(
     }
     @Synchronized override fun react(emoji: String) = send(Msg.React(myId, emoji.take(16)))
     @Synchronized override fun heart() = send(Msg.Heart(myId))
+    @Synchronized override fun requestTicks(at: List<Long>) = send(Msg.Ticks(at))
     @Synchronized override fun addTrack(meta: TrackMeta) = send(Msg.Cmd(Command.Add(meta.copy(owner = myId))))
 
     /** Pings quickly until the clock estimate settles, then every few seconds. */

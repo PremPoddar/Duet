@@ -28,6 +28,8 @@ sealed class Msg {
     @Serializable @SerialName("have") data class Have(val trackId: String) : Msg()
     /** Host to a guest who added a track: please upload it. */
     @Serializable @SerialName("want") data class Want(val trackId: String) : Msg()
+    /** A guest asks the host to tick at these host times, to match their sound by ear. */
+    @Serializable @SerialName("ticks") data class Ticks(val at: List<Long>) : Msg()
     @Serializable @SerialName("bye") data class Bye(val reason: String = "") : Msg()
 
     fun encode(): String = Wire.json.encodeToString(serializer(), this)
