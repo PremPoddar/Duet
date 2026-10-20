@@ -30,4 +30,14 @@ class YouTubeTest {
         val state = PlaybackState(queue = listOf(t), index = 0, positionMs = 0, anchor = 0, playing = true)
         assertThat(state.positionAt(600_000)).isEqualTo(600_000)
     }
+
+    @Test fun findsPlaylists() {
+        val list = "PLFgquLnL59alCl_2TQvOiD5Vgm1hCaGSI"
+        assertThat(YouTube.playlistId("https://www.youtube.com/playlist?list=$list")).isEqualTo(list)
+        assertThat(YouTube.playlistId("https://youtube.com/watch?v=dQw4w9WgXcQ&list=$list&index=3")).isEqualTo(list)
+        assertThat(YouTube.playlistId("https://music.youtube.com/playlist?list=$list")).isEqualTo(list)
+        assertThat(YouTube.playlistId("https://youtu.be/dQw4w9WgXcQ?list=$list")).isEqualTo(list)
+        assertThat(YouTube.playlistId("https://www.youtube.com/watch?v=dQw4w9WgXcQ")).isNull()
+        assertThat(YouTube.playlistId("https://example.com/?list=$list")).isNull()
+    }
 }

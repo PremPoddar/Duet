@@ -164,7 +164,8 @@ fun SessionScreen(onAddSong: () -> Unit) {
                         androidx.compose.ui.viewinterop.AndroidView(
                             factory = { com.prempoddar.duet.play.YouTubePlayer.view(context).also { (it.parent as? android.view.ViewGroup)?.removeView(it) } },
                             onRelease = { (it.parent as? android.view.ViewGroup)?.removeView(it) },
-                            modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(MaterialTheme.shapes.large),
+                            // Not clipped: video is drawn on its own layer, which a rounded clip hides entirely.
+                            modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f),
                         )
                         problem?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 8.dp)) }
                     }

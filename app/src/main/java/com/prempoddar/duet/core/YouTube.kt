@@ -29,6 +29,19 @@ object YouTube {
         return id?.takeIf { ID.matches(it) }
     }
 
+    /** The playlist in a YouTube link (playlist pages, or a video shared from one), or null. */
+    fun playlistId(link: String): String? {
+        val text = link.replace(Regex("\\s+"), "")
+        val url = runCatching { java.net.URI(if ("://" in text) text else "https://$text") }.getOrNull() ?: return null
+        val host = url.host?.lowercase() ?: return null
+        if (!host.endsWith("youtube.com") && host != "youtu.be") return null
+        val list = url.rawQuery?.split('&')?.firstOrNull { it.startsWith("list=") }?.removePrefix("list=") ?: return null
+        return list.takeIf { Regex("^[A-Za-z0-9_-]{10,64}$").matches(it) }
+    }
+
+    /** Most videos taken from one playlist, so a huge one doesn't flood the queue. */
+    const val PLAYLIST_LIMIT = 100
+
     /** A queue entry for [videoId]; its id is derived from the video, so adding it twice is the same entry. */
     fun track(videoId: String, title: String, channel: String, owner: String) = TrackMeta(
         id = MessageDigest.getInstance("SHA-256").digest("youtube:$videoId".toByteArray()).joinToString("") { "%02x".format(it) }.take(16),

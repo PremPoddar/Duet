@@ -65,6 +65,20 @@ object YouTubePlayer {
         js(if (play) "load('$id',$seconds)" else "cue('$id',$seconds)")
     }
 
+    private val lists = java.util.concurrent.ConcurrentHashMap<String, kotlinx.coroutines.CompletableDeferred<List<String>>>()
+
+    /**
+     * The videos in a playlist, in order, asked of YouTube's own player (no account or key
+     * needed); empty if it couldn't be read within a few seconds.
+     */
+    suspend fun playlist(context: Context, listId: String): List<String> {
+        main.post { view(context) }
+        val wait = kotlinx.coroutines.CompletableDeferred<List<String>>()
+        lists[listId] = wait
+        js("listIds('$listId')")
+        return kotlinx.coroutines.withTimeoutOrNull(20_000) { wait.await() }.orEmpty().also { lists.remove(listId) }
+    }
+
     fun play() = js("player&&player.playVideo()")
     fun pause() = js("player&&player.pauseVideo()")
     fun seek(ms: Long) {
@@ -96,6 +110,10 @@ object YouTubePlayer {
         @JavascriptInterface fun time(ms: Long, duration: Long, s: Int) {
             reportedMs = ms; reportedAt = SystemClock.elapsedRealtime(); state = s
             if (duration > 0) _durationMs.value = duration
+        }
+        @JavascriptInterface fun playlist(listId: String, json: String) {
+            val ids = runCatching { org.json.JSONArray(json).let { a -> (0 until a.length()).map { a.getString(it) } } }.getOrDefault(emptyList())
+            lists[listId]?.complete(ids)
         }
         @JavascriptInterface fun error(code: Int) {
             _error.value = when (code) {
@@ -134,6 +152,29 @@ object YouTubePlayer {
             if (!player) make(id, s, auto);
             else if (auto) player.loadVideoById({ videoId: id, startSeconds: s });
             else player.cueVideoById({ videoId: id, startSeconds: s });
+          };
+          if (apiReady) go(); else pending = go;
+        }
+        // A playlist's video ids, read by a small off-screen player made only for that.
+        function listIds(list) {
+          var go = function () {
+            var d = document.createElement('div');
+            d.id = 'pl' + Date.now();
+            d.style.cssText = 'position:absolute;left:-9999px;width:200px;height:200px';
+            document.body.appendChild(d);
+            var tries = 0;
+            var finish = function (ids) { Duet.playlist(list, JSON.stringify(ids || [])); try { p.destroy(); } catch (e) {} d.remove(); };
+            var p = new YT.Player(d.id, { width: 200, height: 200,
+              playerVars: { listType: 'playlist', list: list, origin: 'https://prempoddar.github.io' },
+              events: {
+                onReady: function () {
+                  var t = setInterval(function () {
+                    var ids = p.getPlaylist && p.getPlaylist();
+                    if ((ids && ids.length) || ++tries > 40) { clearInterval(t); finish(ids); }
+                  }, 250);
+                },
+                onError: function () { finish([]); }
+              } });
           };
           if (apiReady) go(); else pending = go;
         }

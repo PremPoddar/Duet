@@ -159,9 +159,12 @@ private fun YouTubeLinkDialog(onDismiss: () -> Unit, onAdded: () -> Unit) {
     val clip = remember {
         runCatching { context.getSystemService(android.content.ClipboardManager::class.java).primaryClip?.getItemAt(0)?.text?.toString() }.getOrNull()
     }
-    var link by remember { mutableStateOf(clip?.takeIf { com.prempoddar.duet.core.YouTube.videoId(it) != null }.orEmpty()) }
-    var busy by remember { mutableStateOf(false) }
+    var link by remember { mutableStateOf(clip?.takeIf { com.prempoddar.duet.core.YouTube.videoId(it) != null || com.prempoddar.duet.core.YouTube.playlistId(it) != null }.orEmpty()) }
+    var busy by remember { mutableStateOf<String?>(null) }
     val id = com.prempoddar.duet.core.YouTube.videoId(link)
+    val list = com.prempoddar.duet.core.YouTube.playlistId(link)
+    var wholeList by remember { mutableStateOf(true) }
+    val valid = id != null || list != null
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
         icon = { Icon(Icons.Rounded.SmartDisplay, null) },
@@ -171,23 +174,43 @@ private fun YouTubeLinkDialog(onDismiss: () -> Unit, onAdded: () -> Unit) {
                 Text("Paste a link to a video or song. Every phone plays it from YouTube, so everyone needs internet.", style = MaterialTheme.typography.bodyMedium)
                 androidx.compose.material3.OutlinedTextField(
                     link, { link = it }, singleLine = true, placeholder = { Text("youtube.com/watch?v=…") },
-                    isError = link.isNotBlank() && id == null, modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                    isError = link.isNotBlank() && !valid, modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Uri, autoCorrectEnabled = false),
-                    supportingText = { if (link.isNotBlank() && id == null) Text("That doesn't look like a YouTube video link") },
+                    supportingText = { if (link.isNotBlank() && !valid) Text("That doesn't look like a YouTube video or playlist link") },
                 )
+                if (list != null && id != null) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        androidx.compose.material3.Checkbox(wholeList, { wholeList = it })
+                        Text("Add the whole playlist, not just this video", style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+                busy?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 8.dp)) }
             }
         },
         confirmButton = {
-            androidx.compose.material3.TextButton(enabled = id != null && !busy, onClick = {
-                busy = true
+            androidx.compose.material3.TextButton(enabled = valid && busy == null, onClick = {
+                busy = "Adding…"
                 scope.launch {
-                    val (title, channel) = withContext(Dispatchers.IO) { youTubeTitle(id!!) }
                     val me = AppGraph.sessions.session?.myId.orEmpty()
-                    AppGraph.sessions.addStream(com.prempoddar.duet.core.YouTube.track(id!!, title, channel, me))
-                    busy = false
+                    val ids = if (list != null && (id == null || wholeList)) {
+                        busy = "Reading the playlist…"
+                        com.prempoddar.duet.play.YouTubePlayer.playlist(context, list).take(com.prempoddar.duet.core.YouTube.PLAYLIST_LIMIT)
+                    } else listOfNotNull(id)
+                    if (ids.isEmpty()) {
+                        busy = null
+                        android.widget.Toast.makeText(context, "That playlist couldn't be read. It may be private.", android.widget.Toast.LENGTH_LONG).show()
+                        return@launch
+                    }
+                    ids.forEachIndexed { i, v ->
+                        if (ids.size > 1) busy = "Adding ${i + 1} of ${ids.size}…"
+                        val (title, channel) = withContext(Dispatchers.IO) { youTubeTitle(v) }
+                        AppGraph.sessions.addStream(com.prempoddar.duet.core.YouTube.track(v, title, channel, me))
+                    }
+                    busy = null
+                    if (ids.size > 1) android.widget.Toast.makeText(context, "Added ${ids.size} videos", android.widget.Toast.LENGTH_SHORT).show()
                     onAdded()
                 }
-            }) { Text(if (busy) "Adding…" else "Add") }
+            }) { Text(if (busy != null) "Adding…" else "Add") }
         },
         dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text("Cancel") } },
     )
