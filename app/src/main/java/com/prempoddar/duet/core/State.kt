@@ -19,7 +19,12 @@ data class TrackMeta(
     val art: String? = null,
     /** SHA-256 of the file, hex. */
     val digest: String,
-)
+    /** A YouTube video id: every phone streams it from YouTube instead of being sent a file. */
+    val youtube: String? = null,
+) {
+    /** Streamed, so there is no file to send or wait for. */
+    val isStream: Boolean get() = youtube != null
+}
 
 /**
  * Everyone's shared truth, kept by the host. [positionMs] was the position at host time [anchor];
@@ -38,8 +43,9 @@ data class PlaybackState(
 
     fun positionAt(hostNow: Long): Long {
         val pos = if (playing) positionMs + (hostNow - anchor) else positionMs
-        val max = current?.durationMs ?: return 0
-        return pos.coerceIn(0, max)
+        val track = current ?: return 0
+        // A stream's length is only known once it plays; until then, no upper limit.
+        return if (track.durationMs <= 0) pos.coerceAtLeast(0) else pos.coerceIn(0, track.durationMs)
     }
 }
 

@@ -112,9 +112,12 @@ class HostSession(
 
     override val members: List<Member>
         @Synchronized get() {
-            val current = state.current?.id
-            return listOf(Member(myId, myName, isHost = true, ready = current == null || store.has(current))) +
-                guests.values.map { Member(it.id, it.name, isHost = false, ready = current == null || current in it.have) }
+            val track = state.current
+            val current = track?.id
+            // Everyone is ready for a stream: there's nothing to receive.
+            val stream = track?.isStream == true
+            return listOf(Member(myId, myName, isHost = true, ready = current == null || stream || store.has(current))) +
+                guests.values.map { Member(it.id, it.name, isHost = false, ready = current == null || stream || current in it.have) }
         }
 
     override fun hostNow() = clock()
@@ -136,7 +139,7 @@ class HostSession(
                 val cmd = msg.command
                 if (cmd is Command.Add) {
                     val track = cmd.track.copy(owner = guest.id)
-                    if (!store.has(track.id)) {
+                    if (!track.isStream && !store.has(track.id)) {
                         uploads[track.id] = guest.id
                         link.sendText(Msg.Want(track.id).encode())
                     }

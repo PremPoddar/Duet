@@ -278,6 +278,11 @@ class SessionManager(private val context: Context) {
         s.addTrack(meta)
     }
 
+    /** Adds a YouTube video to the queue; every phone streams it, nothing is sent. */
+    fun addStream(meta: com.prempoddar.duet.core.TrackMeta) {
+        session?.addTrack(meta)
+    }
+
     fun leave() {
         session?.leave()
         reset()

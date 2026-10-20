@@ -65,8 +65,14 @@ class PlayerController(private val context: Context, private val sessions: Sessi
             if (loaded != null) {
                 player.stop(); player.clearMediaItems(); loaded = null
             }
+            YouTubePlayer.stop()
             return
         }
+        if (track.isStream) {
+            streamStep(session, st, track)
+            return
+        }
+        YouTubePlayer.stop()
         if (loaded != track.id) {
             val file = sessions.store.file(track.id)
             if (file == null) {
@@ -122,6 +128,55 @@ class PlayerController(private val context: Context, private val sessions: Sessi
         _drift.value = sync.drift
     }
 
+    private var lastStreamSeek = 0L
+    /** How far ahead to aim a jump, learnt from how far behind the video is after one. */
+    private var streamLead = STREAM_JUMP_LEAD_MS
+    private var checkAfterSeek = false
+
+    /**
+     * A YouTube video: the embedded player can't change speed finely, so drift is corrected by
+     * jumping, and only when it is large enough to hear and not more than every few seconds.
+     */
+    private fun streamStep(session: com.prempoddar.duet.core.Session, st: com.prempoddar.duet.core.PlaybackState, track: com.prempoddar.duet.core.TrackMeta) {
+        if (loaded != null) { player.stop(); player.clearMediaItems(); loaded = null }
+        val yt = YouTubePlayer
+        val now = android.os.SystemClock.elapsedRealtime()
+        val target = st.positionAt(session.hostNow()) + settings.nudge(_output.value)
+        if (yt.videoId != track.youtube) {
+            yt.load(track.youtube!!, target.coerceAtLeast(0), st.playing)
+            lastStreamSeek = now
+            return
+        }
+        if (yt.ended) {
+            if (endedSent != track.id) { endedSent = track.id; session.command(Command.Ended(track.id)) }
+            return
+        }
+        if (!st.playing) {
+            if (yt.playing) yt.pause()
+            if (kotlin.math.abs(yt.positionMs() - target) > 700) yt.seek(target.coerceAtLeast(0))
+            _drift.value = 0
+            return
+        }
+        if (!yt.playing) {
+            // Buffering after a jump or a stall: give it time before asking again.
+            if (now - lastStreamSeek > 4_000) { yt.seek((target + streamLead).coerceAtLeast(0)); yt.play(); lastStreamSeek = now; checkAfterSeek = true }
+            return
+        }
+        val drift = target - yt.positionMs()
+        _drift.value = drift
+        // Once playing again after a jump, whatever is still off is how much the jump itself cost.
+        if (checkAfterSeek && now - lastStreamSeek > 2_000) {
+            checkAfterSeek = false
+            streamLead = (streamLead + drift).coerceIn(0, MAX_STREAM_LEAD_MS)
+        }
+        if (kotlin.math.abs(drift) > STREAM_TOLERANCE_MS && now - lastStreamSeek > STREAM_SEEK_GAP_MS) {
+            android.util.Log.i("DuetSync", "stream drift ${drift} ms, jumping with lead $streamLead")
+            yt.seek((target + streamLead).coerceAtLeast(0))
+            lastStreamSeek = now
+            checkAfterSeek = true
+        }
+    }
+
     private fun setSpeed(speed: Float) {
         if (speed == lastSpeed) return
         lastSpeed = speed
@@ -139,6 +194,10 @@ class PlayerController(private val context: Context, private val sessions: Sessi
 
     companion object {
         private const val STEP_MS = 200L
+        private const val STREAM_TOLERANCE_MS = 350L
+        private const val STREAM_JUMP_LEAD_MS = 300L
+        private const val MAX_STREAM_LEAD_MS = 2_000L
+        private const val STREAM_SEEK_GAP_MS = 6_000L
         private const val END_MARGIN_MS = 150L
         private val BT = setOf(AudioDeviceInfo.TYPE_BLUETOOTH_A2DP, AudioDeviceInfo.TYPE_HEARING_AID, 26, 27)
         private val WIRED = setOf(AudioDeviceInfo.TYPE_WIRED_HEADPHONES, AudioDeviceInfo.TYPE_WIRED_HEADSET, AudioDeviceInfo.TYPE_USB_HEADSET)

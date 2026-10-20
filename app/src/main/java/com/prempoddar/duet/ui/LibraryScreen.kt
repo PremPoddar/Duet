@@ -1,5 +1,6 @@
 package com.prempoddar.duet.ui
 
+import androidx.compose.material.icons.rounded.SmartDisplay
 import androidx.compose.material.icons.rounded.Search
 import com.prempoddar.duet.ui.design.PillTextField
 import com.prempoddar.duet.ui.design.EmptyState
@@ -89,12 +90,15 @@ fun LibraryScreen(onDone: () -> Unit) {
         }
     }
     val pickFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(::add) }
+    var youtube by remember { mutableStateOf(false) }
+    if (youtube) YouTubeLinkDialog(onDismiss = { youtube = false }, onAdded = { youtube = false; onDone() })
     val insets = WindowInsets.safeDrawing.asPaddingValues()
 
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface).padding(top = insets.calculateTopPadding())) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onDone) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back") }
             Text("Add a song", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
+            IconButton(onClick = { youtube = true }) { Icon(Icons.Rounded.SmartDisplay, "Add from YouTube") }
             IconButton(onClick = { pickFile.launch(arrayOf("audio/*")) }) { Icon(Icons.Rounded.FolderOpen, "Pick another file") }
         }
         if (!granted) {
@@ -143,3 +147,58 @@ fun time(ms: Long): String {
     val s = (ms / 1000).coerceAtLeast(0)
     return "%d:%02d".format(s / 60, s % 60)
 }
+
+/**
+ * A YouTube link becomes a queue entry everyone streams. The title and channel come from
+ * YouTube's public oEmbed lookup; if that fails the video is still added, just without a name.
+ */
+@Composable
+private fun YouTubeLinkDialog(onDismiss: () -> Unit, onAdded: () -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = rememberCoroutineScope()
+    val clip = remember {
+        runCatching { context.getSystemService(android.content.ClipboardManager::class.java).primaryClip?.getItemAt(0)?.text?.toString() }.getOrNull()
+    }
+    var link by remember { mutableStateOf(clip?.takeIf { com.prempoddar.duet.core.YouTube.videoId(it) != null }.orEmpty()) }
+    var busy by remember { mutableStateOf(false) }
+    val id = com.prempoddar.duet.core.YouTube.videoId(link)
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Rounded.SmartDisplay, null) },
+        title = { Text("Add from YouTube") },
+        text = {
+            Column {
+                Text("Paste a link to a video or song. Every phone plays it from YouTube, so everyone needs internet.", style = MaterialTheme.typography.bodyMedium)
+                androidx.compose.material3.OutlinedTextField(
+                    link, { link = it }, singleLine = true, placeholder = { Text("youtube.com/watch?v=…") },
+                    isError = link.isNotBlank() && id == null, modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Uri, autoCorrectEnabled = false),
+                    supportingText = { if (link.isNotBlank() && id == null) Text("That doesn't look like a YouTube video link") },
+                )
+            }
+        },
+        confirmButton = {
+            androidx.compose.material3.TextButton(enabled = id != null && !busy, onClick = {
+                busy = true
+                scope.launch {
+                    val (title, channel) = withContext(Dispatchers.IO) { youTubeTitle(id!!) }
+                    val me = AppGraph.sessions.session?.myId.orEmpty()
+                    AppGraph.sessions.addStream(com.prempoddar.duet.core.YouTube.track(id!!, title, channel, me))
+                    busy = false
+                    onAdded()
+                }
+            }) { Text(if (busy) "Adding…" else "Add") }
+        },
+        dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
+}
+
+/** The video's title and channel from YouTube's oEmbed endpoint, or blanks if it can't be reached. */
+private fun youTubeTitle(id: String): Pair<String, String> = runCatching {
+    val url = java.net.URL("https://www.youtube.com/oembed?format=json&url=" + java.net.URLEncoder.encode("https://www.youtube.com/watch?v=$id", "UTF-8"))
+    val conn = (url.openConnection() as java.net.HttpURLConnection).apply { connectTimeout = 6_000; readTimeout = 6_000 }
+    try {
+        val o = org.json.JSONObject(conn.inputStream.bufferedReader().readText())
+        o.optString("title") to o.optString("author_name")
+    } finally { conn.disconnect() }
+}.getOrDefault("" to "")

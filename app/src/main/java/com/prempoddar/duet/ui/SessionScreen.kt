@@ -1,5 +1,6 @@
 package com.prempoddar.duet.ui
 
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.foundation.text.KeyboardOptions
@@ -155,7 +156,21 @@ fun SessionScreen(onAddSong: () -> Unit) {
     }
     val record: @Composable (Modifier) -> Unit = { m ->
             Box(m, contentAlignment = Alignment.Center) {
-                Vinyl(art, playing = state.playing && track != null, label = track?.title ?: "♥", modifier = Modifier.fillMaxWidth(0.8f))
+                if (track?.isStream == true) {
+                    // YouTube's player, shown as YouTube asks, at the record's place.
+                    val context = androidx.compose.ui.platform.LocalContext.current
+                    val problem by com.prempoddar.duet.play.YouTubePlayer.error.collectAsStateWithLifecycle()
+                    Column(Modifier.fillMaxWidth(0.95f), horizontalAlignment = Alignment.CenterHorizontally) {
+                        androidx.compose.ui.viewinterop.AndroidView(
+                            factory = { com.prempoddar.duet.play.YouTubePlayer.view(context).also { (it.parent as? android.view.ViewGroup)?.removeView(it) } },
+                            onRelease = { (it.parent as? android.view.ViewGroup)?.removeView(it) },
+                            modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(MaterialTheme.shapes.large),
+                        )
+                        problem?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 8.dp)) }
+                    }
+                } else {
+                    Vinyl(art, playing = state.playing && track != null, label = track?.title ?: "♥", modifier = Modifier.fillMaxWidth(0.8f))
+                }
                 FloatingReactions()
                 HeartPulse()
             }
@@ -174,28 +189,32 @@ fun SessionScreen(onAddSong: () -> Unit) {
                         listOf(track.artist, adder?.let { "added by $it" }).filter { !it.isNullOrBlank() }.joinToString(" · "),
                         style = MaterialTheme.typography.bodyMedium, color = warm.muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
-                    val have = sessions.store.has(track.id)
+                    val have = track.isStream || sessions.store.has(track.id)
+                    // A stream's length comes from YouTube once it starts.
+                    val streamLength by com.prempoddar.duet.play.YouTubePlayer.durationMs.collectAsStateWithLifecycle()
+                    val length = if (track.isStream) streamLength else track.durationMs
                     val p = progress[track.id]
                     Text(
                         when {
                             !have -> "Getting the song… ${((p ?: 0f) * 100).toInt()}%"
                             !state.playing -> "Paused"
-                            kotlin.math.abs(drift) < 40 -> "In sync"
+                            // Streams are corrected by jumping, so they count as together within a wider margin.
+                            kotlin.math.abs(drift) < (if (track.isStream) 350 else 40) -> "In sync"
                             else -> "Catching up…"
                         },
                         style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 6.dp),
                     )
                     if (session != null && !session.isHost && have) EarMatch(session, state.playing)
                     Slider(
-                        value = dragging ?: (position.toFloat() / track.durationMs.coerceAtLeast(1)).coerceIn(0f, 1f),
+                        value = dragging ?: (position.toFloat() / length.coerceAtLeast(1)).coerceIn(0f, 1f),
                         onValueChange = { dragging = it },
-                        onValueChangeFinished = { dragging?.let { session?.command(Command.Seek((it * track.durationMs).toLong())) }; dragging = null },
+                        onValueChangeFinished = { dragging?.let { if (length > 0) session?.command(Command.Seek((it * length).toLong())) }; dragging = null },
                         modifier = Modifier.padding(top = 4.dp),
                     )
                     Row(Modifier.fillMaxWidth()) {
-                        Text(time(dragging?.let { (it * track.durationMs).toLong() } ?: position), style = MaterialTheme.typography.labelMedium, color = warm.muted)
+                        Text(time(dragging?.let { (it * length).toLong() } ?: position), style = MaterialTheme.typography.labelMedium, color = warm.muted)
                         Spacer(Modifier.weight(1f))
-                        Text(time(track.durationMs), style = MaterialTheme.typography.labelMedium, color = warm.muted)
+                        Text(time(length), style = MaterialTheme.typography.labelMedium, color = warm.muted)
                     }
                 }
                 Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
@@ -441,7 +460,7 @@ private fun QueueSheet(queue: List<TrackMeta>, index: Int) {
                         if (i > index + 1) DropdownMenuItem(text = { Text("Play next") }, onClick = { menu = false; session?.command(Command.Move(i, index + 1)) })
                         DropdownMenuItem(text = { Text("Remove") }, onClick = { menu = false; session?.command(Command.Remove(t.id)) })
                         when {
-                            t.owner == myId -> Unit
+                            t.owner == myId || t.isStream -> Unit
                             store.has(t.id) -> DropdownMenuItem(text = { Text("Save to phone") }, onClick = { menu = false; save(listOf(t)) })
                             else -> DropdownMenuItem(text = { Text("Save to phone (still arriving)") }, enabled = false, onClick = {})
                         }
