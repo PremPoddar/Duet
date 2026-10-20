@@ -21,11 +21,13 @@ data class TrackMeta(
     val digest: String,
     /** A YouTube video id: every phone streams it from YouTube instead of being sent a file. */
     val youtube: String? = null,
+    /** Played in another app (its package name) on each phone, rather than by Duet. */
+    val external: String? = null,
     /** Lyrics, timed (.lrc style) or plain, if the song had any. */
     val lyrics: String? = null,
 ) {
     /** Streamed, so there is no file to send or wait for. */
-    val isStream: Boolean get() = youtube != null
+    val isStream: Boolean get() = youtube != null || external != null
 }
 
 /**

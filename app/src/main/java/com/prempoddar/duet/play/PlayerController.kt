@@ -68,6 +68,12 @@ class PlayerController(private val context: Context, private val sessions: Sessi
             YouTubePlayer.stop()
             return
         }
+        if (track.external != null) {
+            YouTubePlayer.stop()
+            if (loaded != null) { player.stop(); player.clearMediaItems(); loaded = null }
+            externalStep(session, st, track)
+            return
+        }
         if (track.isStream) {
             streamStep(session, st, track)
             return
@@ -174,6 +180,28 @@ class PlayerController(private val context: Context, private val sessions: Sessi
             yt.seek((target + streamLead).coerceAtLeast(0))
             lastStreamSeek = now
             checkAfterSeek = true
+        }
+    }
+
+    private var lastExternalCheck = 0L
+
+    /**
+     * A song playing in another app on each phone. The phone that shared it leads: its app's play,
+     * pause and position become everyone's. The others' apps are brought into line with that.
+     */
+    private fun externalStep(session: com.prempoddar.duet.core.Session, st: com.prempoddar.duet.core.PlaybackState, track: com.prempoddar.duet.core.TrackMeta) {
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (now - lastExternalCheck < 1_000) return
+        lastExternalCheck = now
+        if (!OtherApps.hasAccess(context)) { _drift.value = 0; return }
+        val target = st.positionAt(session.hostNow())
+        if (track.owner == session.myId) {
+            val mine = OtherApps.playing(context).firstOrNull { it.app == track.external && it.title.equals(track.title, ignoreCase = true) } ?: return
+            if (mine.playing != st.playing) session.command(if (mine.playing) Command.Play else Command.Pause)
+            if (kotlin.math.abs(mine.positionMs - target) > 2_000) session.command(Command.Seek(mine.positionMs))
+            _drift.value = 0
+        } else {
+            _drift.value = OtherApps.align(context, track, target, st.playing) ?: 0
         }
     }
 

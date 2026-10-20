@@ -1,5 +1,6 @@
 package com.prempoddar.duet.ui
 
+import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.Lyrics
 import androidx.compose.material.icons.rounded.ThumbUpOffAlt
 import androidx.compose.material.icons.rounded.ThumbUp
@@ -159,7 +160,22 @@ fun SessionScreen(onAddSong: () -> Unit) {
     }
     val record: @Composable (Modifier) -> Unit = { m ->
             Box(m, contentAlignment = Alignment.Center) {
-                if (track?.isStream == true) {
+                if (track?.external != null) {
+                    // Played in each person's own music app: say which, and offer to start it there.
+                    val context = androidx.compose.ui.platform.LocalContext.current
+                    val app = remember(track.external) { com.prempoddar.duet.play.OtherApps.appName(context, track.external!!) }
+                    val access = com.prempoddar.duet.play.OtherApps.hasAccess(context)
+                    Column(Modifier.fillMaxWidth(0.85f), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Rounded.Apps, null, Modifier.size(56.dp), tint = warm.brick)
+                        Text("Playing in $app", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 8.dp))
+                        if (track.owner != session?.myId) {
+                            Button(onClick = {
+                                if (!com.prempoddar.duet.play.OtherApps.playInMyApp(context, track)) android.widget.Toast.makeText(context, "No music app here can play it", android.widget.Toast.LENGTH_LONG).show()
+                            }, modifier = Modifier.padding(top = 12.dp)) { Text("Play in my app") }
+                        }
+                        if (!access) TextButton(onClick = { context.startActivity(com.prempoddar.duet.play.OtherApps.accessSettings()) }) { Text("Let Duet keep my app in step") }
+                    }
+                } else if (track?.isStream == true) {
                     // YouTube's player, shown as YouTube asks, at the record's place.
                     val context = androidx.compose.ui.platform.LocalContext.current
                     val problem by com.prempoddar.duet.play.YouTubePlayer.error.collectAsStateWithLifecycle()

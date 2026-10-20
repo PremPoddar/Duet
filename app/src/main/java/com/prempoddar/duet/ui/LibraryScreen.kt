@@ -1,5 +1,7 @@
 package com.prempoddar.duet.ui
 
+import androidx.compose.material.icons.rounded.GraphicEq
+import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.SmartDisplay
 import androidx.compose.material.icons.rounded.Search
 import com.prempoddar.duet.ui.design.PillTextField
@@ -91,6 +93,8 @@ fun LibraryScreen(onDone: () -> Unit) {
     }
     val pickFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(::add) }
     var youtube by remember { mutableStateOf(false) }
+    var otherApp by remember { mutableStateOf(false) }
+    if (otherApp) OtherAppDialog(onDismiss = { otherApp = false }, onAdded = { otherApp = false; onDone() })
     if (youtube) YouTubeLinkDialog(onDismiss = { youtube = false }, onAdded = { youtube = false; onDone() })
     val insets = WindowInsets.safeDrawing.asPaddingValues()
 
@@ -98,6 +102,7 @@ fun LibraryScreen(onDone: () -> Unit) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onDone) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back") }
             Text("Add a song", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
+            IconButton(onClick = { otherApp = true }) { Icon(Icons.Rounded.Apps, "Play along with another app") }
             IconButton(onClick = { youtube = true }) { Icon(Icons.Rounded.SmartDisplay, "Add from YouTube") }
             IconButton(onClick = { pickFile.launch(arrayOf("audio/*")) }) { Icon(Icons.Rounded.FolderOpen, "Pick another file") }
         }
@@ -225,3 +230,56 @@ private fun youTubeTitle(id: String): Pair<String, String> = runCatching {
         o.optString("title") to o.optString("author_name")
     } finally { conn.disconnect() }
 }.getOrDefault("" to "")
+
+/**
+ * Sharing what Spotify, Apple Music or another app is playing: everyone plays it in their own
+ * app, and Duet keeps them in step through those apps' controls.
+ */
+@Composable
+private fun OtherAppDialog(onDismiss: () -> Unit, onAdded: () -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var access by remember { mutableStateOf(com.prempoddar.duet.play.OtherApps.hasAccess(context)) }
+    var playing by remember { mutableStateOf(emptyList<com.prempoddar.duet.play.OtherApps.Playing>()) }
+    // Checked again on return from Settings, and every couple of seconds while open.
+    LaunchedEffect(Unit) {
+        while (true) {
+            access = com.prempoddar.duet.play.OtherApps.hasAccess(context)
+            if (access) playing = withContext(Dispatchers.IO) { com.prempoddar.duet.play.OtherApps.playing(context) }
+            kotlinx.coroutines.delay(2_000)
+        }
+    }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Rounded.Apps, null) },
+        title = { Text("Play along with another app") },
+        text = {
+            Column {
+                Text(
+                    "Start a song in Spotify, Apple Music, YouTube Music or another app, then share it here. Everyone plays it in their own app with their own account, and Duet keeps them together (to about a second).",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                if (!access) {
+                    Text("Duet needs to see what's playing on this phone. Allow it in the next screen (it reads no messages).", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 12.dp))
+                    androidx.compose.material3.TextButton(onClick = { context.startActivity(com.prempoddar.duet.play.OtherApps.accessSettings()) }) { Text("Allow") }
+                } else if (playing.isEmpty()) {
+                    Text("Nothing is playing in another app yet.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 12.dp))
+                } else playing.forEach { p ->
+                    Row(
+                        Modifier.fillMaxWidth().padding(top = 10.dp).clip(MaterialTheme.shapes.medium).clickable {
+                            AppGraph.sessions.addStream(com.prempoddar.duet.play.OtherApps.track(p, AppGraph.sessions.session?.myId.orEmpty()))
+                            onAdded()
+                        }.padding(10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(if (p.playing) Icons.Rounded.GraphicEq else Icons.Rounded.MusicNote, null)
+                        Column(Modifier.padding(start = 12.dp).weight(1f)) {
+                            Text(p.title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(listOf(p.artist, p.appName).filter { it.isNotBlank() }.joinToString(" · "), style = MaterialTheme.typography.bodySmall, maxLines = 1)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text("Close") } },
+    )
+}

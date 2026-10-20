@@ -62,7 +62,17 @@ object Library {
             }?.let { path -> File(path.substringBeforeLast('.') + ".lrc").takeIf { it.canRead() }?.readText() }
         }.getOrNull()
         if (!sidecar.isNullOrBlank()) return sidecar
-        val head = file?.let { f -> runCatching { f.inputStream().use { it.readNBytes(512 * 1024) } }.getOrNull() } ?: return null
+        // The tag sits at the start of the file; half a megabyte holds it, cover art and all.
+        val head = file?.let { f ->
+            runCatching {
+                f.inputStream().use { input ->
+                    val buf = ByteArray(minOf(f.length(), 512L * 1024).toInt())
+                    var n = 0
+                    while (n < buf.size) { val r = input.read(buf, n, buf.size - n); if (r < 0) break; n += r }
+                    buf.copyOf(n)
+                }
+            }.getOrNull()
+        } ?: return null
         return com.prempoddar.duet.core.Lyrics.fromId3(head)
     }
 
