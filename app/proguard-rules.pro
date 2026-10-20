@@ -8,3 +8,5 @@
 -keep class org.eclipse.paho.client.mqttv3.** { *; }
 -dontwarn org.eclipse.paho.**
 -dontwarn javax.naming.**
+# Web pages call these bridge methods by name.
+-keepclassmembers class * { @android.webkit.JavascriptInterface <methods>; }
