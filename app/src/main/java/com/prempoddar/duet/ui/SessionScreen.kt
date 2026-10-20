@@ -389,9 +389,32 @@ private fun qr(text: String, size: Int = 600): ImageBitmap {
 @Composable
 private fun QueueSheet(queue: List<TrackMeta>, index: Int) {
     val warm = LocalWarm.current
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = rememberCoroutineScope()
     val session = AppGraph.sessions.session
+    val store = AppGraph.sessions.store
+    val myId = session?.myId
+    // Redrawn as songs arrive, so their Save option turns on.
+    val arriving by AppGraph.sessions.progress.collectAsStateWithLifecycle()
+    // Songs others added that have arrived here; one's own songs are already on this phone.
+    val saveable = remember(queue, arriving) { queue.filter { it.owner != myId && store.has(it.id) } }
+    fun save(songs: List<TrackMeta>) = scope.launch {
+        val saved = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            songs.count { t -> store.file(t.id)?.let { com.prempoddar.duet.data.SaveToPhone.save(context, t, it) } == true }
+        }
+        val text = when {
+            saved == 0 -> "Couldn't save that to this phone"
+            songs.size == 1 -> "Saved to Music/Duet"
+            saved < songs.size -> "Saved $saved of ${songs.size} songs to Music/Duet"
+            else -> "Saved $saved songs to Music/Duet"
+        }
+        android.widget.Toast.makeText(context, text, android.widget.Toast.LENGTH_SHORT).show()
+    }
     Column(Modifier.fillMaxWidth().heightIn(max = 560.dp).padding(bottom = 24.dp)) {
-        Text("Up next", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
+        Row(Modifier.fillMaxWidth().padding(start = 24.dp, end = 12.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("Up next", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
+            if (saveable.size > 1) TextButton(onClick = { save(saveable) }) { Text("Save all to phone") }
+        }
         if (queue.isEmpty()) Text("The queue is empty. Anyone can add songs from their own phone.", modifier = Modifier.padding(24.dp), color = warm.muted)
         LazyColumn {
             itemsIndexed(queue, key = { _, t -> t.id }) { i, t ->
@@ -417,6 +440,11 @@ private fun QueueSheet(queue: List<TrackMeta>, index: Int) {
                     DropdownMenu(menu, onDismissRequest = { menu = false }) {
                         if (i > index + 1) DropdownMenuItem(text = { Text("Play next") }, onClick = { menu = false; session?.command(Command.Move(i, index + 1)) })
                         DropdownMenuItem(text = { Text("Remove") }, onClick = { menu = false; session?.command(Command.Remove(t.id)) })
+                        when {
+                            t.owner == myId -> Unit
+                            store.has(t.id) -> DropdownMenuItem(text = { Text("Save to phone") }, onClick = { menu = false; save(listOf(t)) })
+                            else -> DropdownMenuItem(text = { Text("Save to phone (still arriving)") }, enabled = false, onClick = {})
+                        }
                     }
                 }
             }
