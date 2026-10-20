@@ -1,5 +1,6 @@
 package com.prempoddar.duet.ui
 
+import com.prempoddar.duet.ui.design.sliding
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -66,7 +67,7 @@ fun SettingsScreen(onBack: () -> Unit, onAppearance: () -> Unit, onAbout: () -> 
             }
             item {
                 SettingsGroup("General") {
-                    SettingsRow("Appearance", "Theme, colours and black backgrounds", Icons.Rounded.Palette, onClick = onAppearance) { Chevron() }
+                    SettingsRow("Look & feel", "Theme, colours, font, shapes and haptics", Icons.Rounded.Palette, onClick = onAppearance) { Chevron() }
                 }
             }
             item {
@@ -108,6 +109,6 @@ private fun Nudge(label: String, icon: ImageVector, value: Int, active: Boolean,
                 )
             }
         }
-        Slider(v, { v = (it / 10).toInt() * 10f }, valueRange = -400f..400f, onValueChangeFinished = { onChange(v.toInt()) }, modifier = Modifier.padding(start = 56.dp))
+        Slider(v, sliding(-400f..400f) { v = (it / 10).toInt() * 10f }, valueRange = -400f..400f, onValueChangeFinished = { onChange(v.toInt()) }, modifier = Modifier.padding(start = 56.dp))
     }
 }

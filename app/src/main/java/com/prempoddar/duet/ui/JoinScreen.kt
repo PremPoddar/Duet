@@ -1,5 +1,6 @@
 package com.prempoddar.duet.ui
 
+import com.prempoddar.duet.ui.design.tap
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -72,7 +73,7 @@ fun JoinScreen(settings: DuetSettings, initial: String, onBack: () -> Unit) {
 
     WarmBackground(warm.brick) {
         Column(Modifier.fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(top = insets.calculateTopPadding()).padding(horizontal = 24.dp).widthIn(max = 560.dp)) {
-            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back") }
+            IconButton(onClick = tap(onBack)) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back") }
             Text("Join a session", style = MaterialTheme.typography.headlineMedium)
             Text(
                 "Type the six words from the person hosting, or scan their code.",

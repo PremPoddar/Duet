@@ -19,6 +19,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        com.prempoddar.duet.ui.design.Haptics.attach(window.decorView)
         enableEdgeToEdge()
         handle(intent)
         setContent {

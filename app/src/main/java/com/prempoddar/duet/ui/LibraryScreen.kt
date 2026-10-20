@@ -1,5 +1,6 @@
 package com.prempoddar.duet.ui
 
+import com.prempoddar.duet.ui.design.tap
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.SmartDisplay
@@ -100,11 +101,11 @@ fun LibraryScreen(onDone: () -> Unit) {
 
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface).padding(top = insets.calculateTopPadding())) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onDone) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back") }
+            IconButton(onClick = tap(onDone)) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back") }
             Text("Add a song", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
-            IconButton(onClick = { otherApp = true }) { Icon(Icons.Rounded.Apps, "Play along with another app") }
-            IconButton(onClick = { youtube = true }) { Icon(Icons.Rounded.SmartDisplay, "Add from YouTube") }
-            IconButton(onClick = { pickFile.launch(arrayOf("audio/*")) }) { Icon(Icons.Rounded.FolderOpen, "Pick another file") }
+            IconButton(onClick = tap { otherApp = true }) { Icon(Icons.Rounded.Apps, "Play along with another app") }
+            IconButton(onClick = tap { youtube = true }) { Icon(Icons.Rounded.SmartDisplay, "Add from YouTube") }
+            IconButton(onClick = tap { pickFile.launch(arrayOf("audio/*")) }) { Icon(Icons.Rounded.FolderOpen, "Pick another file") }
         }
         if (!granted) {
             Column(Modifier.padding(24.dp)) {
@@ -193,7 +194,7 @@ private fun YouTubeLinkDialog(onDismiss: () -> Unit, onAdded: () -> Unit) {
             }
         },
         confirmButton = {
-            androidx.compose.material3.TextButton(enabled = valid && busy == null, onClick = {
+            androidx.compose.material3.TextButton(enabled = valid && busy == null, onClick = tap {
                 busy = "Adding…"
                 scope.launch {
                     val me = AppGraph.sessions.session?.myId.orEmpty()
@@ -217,7 +218,7 @@ private fun YouTubeLinkDialog(onDismiss: () -> Unit, onAdded: () -> Unit) {
                 }
             }) { Text(if (busy != null) "Adding…" else "Add") }
         },
-        dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { androidx.compose.material3.TextButton(onClick = tap(onDismiss)) { Text("Cancel") } },
     )
 }
 
@@ -260,7 +261,7 @@ private fun OtherAppDialog(onDismiss: () -> Unit, onAdded: () -> Unit) {
                 )
                 if (!access) {
                     Text("Duet needs to see what's playing on this phone. Allow it in the next screen (it reads no messages).", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 12.dp))
-                    androidx.compose.material3.TextButton(onClick = { context.startActivity(com.prempoddar.duet.play.OtherApps.accessSettings()) }) { Text("Allow") }
+                    androidx.compose.material3.TextButton(onClick = tap { context.startActivity(com.prempoddar.duet.play.OtherApps.accessSettings()) }) { Text("Allow") }
                 } else if (playing.isEmpty()) {
                     Text("Nothing is playing in another app yet.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 12.dp))
                 } else playing.forEach { p ->
@@ -280,6 +281,6 @@ private fun OtherAppDialog(onDismiss: () -> Unit, onAdded: () -> Unit) {
                 }
             }
         },
-        confirmButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text("Close") } },
+        confirmButton = { androidx.compose.material3.TextButton(onClick = tap(onDismiss)) { Text("Close") } },
     )
 }

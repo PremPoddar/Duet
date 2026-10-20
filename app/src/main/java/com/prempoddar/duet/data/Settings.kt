@@ -44,6 +44,7 @@ class SettingsRepository(private val context: Context) {
         val dynamic = booleanPreferencesKey("dynamic")
         val accent = intPreferencesKey("accent")
         val black = booleanPreferencesKey("pure_black")
+        val look = stringPreferencesKey("look")
         val speaker = intPreferencesKey("nudge_speaker")
         val wired = intPreferencesKey("nudge_wired")
         val bt = intPreferencesKey("nudge_bt")
@@ -56,7 +57,7 @@ class SettingsRepository(private val context: Context) {
         context.dataStore.edit { p ->
             val n = f(p.toSettings())
             p[K.name] = n.name; p[K.theme] = n.appearance.mode.name
-            p[K.dynamic] = n.appearance.dynamic; p[K.black] = n.appearance.pureBlack
+            p[K.dynamic] = n.appearance.dynamic; p[K.black] = n.appearance.pureBlack; p[K.look] = n.appearance.extras()
             n.appearance.accent?.let { p[K.accent] = it } ?: p.remove(K.accent)
             p[K.speaker] = n.nudgeSpeaker; p[K.wired] = n.nudgeWired; p[K.bt] = n.nudgeBluetooth
         }
@@ -71,7 +72,7 @@ class SettingsRepository(private val context: Context) {
                 dynamic = this[K.dynamic] ?: false,
                 accent = this[K.accent],
                 pureBlack = this[K.black] ?: false,
-            ),
+            ).withExtras(this[K.look]),
             nudgeSpeaker = this[K.speaker] ?: d.nudgeSpeaker,
             nudgeWired = this[K.wired] ?: d.nudgeWired,
             nudgeBluetooth = this[K.bt] ?: d.nudgeBluetooth,

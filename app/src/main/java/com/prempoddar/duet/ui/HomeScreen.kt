@@ -1,5 +1,6 @@
 package com.prempoddar.duet.ui
 
+import com.prempoddar.duet.ui.design.tap
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -138,7 +139,7 @@ private fun Header(onSettings: () -> Unit) {
             Text("Duet", style = MaterialTheme.typography.displaySmall, color = MaterialTheme.colorScheme.onSurface)
             Text("Same song, same moment — wherever you both are.", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        FilledTonalIconButton(onClick = onSettings, modifier = Modifier.size(48.dp)) { Icon(Icons.Rounded.Settings, "Settings") }
+        FilledTonalIconButton(onClick = tap(onSettings), modifier = Modifier.size(48.dp)) { Icon(Icons.Rounded.Settings, "Settings") }
     }
 }
 
@@ -184,8 +185,8 @@ fun NameDialog(onDone: (String) -> Unit, onDismiss: () -> Unit) {
                 keyboardActions = KeyboardActions(onDone = { if (name.isNotBlank()) onDone(name.trim()) }),
             )
         },
-        confirmButton = { TextButton(enabled = name.isNotBlank(), onClick = { onDone(name.trim()) }) { Text("Continue") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        confirmButton = { TextButton(enabled = name.isNotBlank(), onClick = tap { onDone(name.trim()) }) { Text("Continue") } },
+        dismissButton = { TextButton(onClick = tap(onDismiss)) { Text("Cancel") } },
     )
 }
 
@@ -201,11 +202,11 @@ fun ConnectingDialog(message: String) {
                 Text(message)
             }
         },
-        confirmButton = { TextButton(onClick = { AppGraph.sessions.leave() }) { Text("Cancel") } },
+        confirmButton = { TextButton(onClick = tap { AppGraph.sessions.leave() }) { Text("Cancel") } },
     )
 }
 
 @Composable
 fun InfoDialog(title: String, body: String, onDismiss: () -> Unit) {
-    AlertDialog(onDismissRequest = onDismiss, title = { Text(title) }, text = { Text(body) }, confirmButton = { TextButton(onClick = onDismiss) { Text("OK") } })
+    AlertDialog(onDismissRequest = onDismiss, title = { Text(title) }, text = { Text(body) }, confirmButton = { TextButton(onClick = tap(onDismiss)) { Text("OK") } })
 }

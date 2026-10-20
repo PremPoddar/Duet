@@ -1,5 +1,7 @@
 package com.prempoddar.duet.ui
 
+import com.prempoddar.duet.ui.design.sliding
+import com.prempoddar.duet.ui.design.tap
 import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.Lyrics
 import androidx.compose.material.icons.rounded.ThumbUpOffAlt
@@ -152,9 +154,9 @@ fun SessionScreen(onAddSong: () -> Unit) {
                         style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
                 }
-                IconButton(onClick = { sheet = Sheet.CODE }) { Icon(Icons.Rounded.Share, "Invite someone", tint = if (others.isEmpty()) warm.brick else MaterialTheme.colorScheme.onSurface) }
-                IconButton(onClick = { sheet = Sheet.PEOPLE }) { Icon(Icons.Rounded.Group, "People") }
-                IconButton(onClick = { confirmLeave = true }) { Icon(Icons.Rounded.Close, "Leave") }
+                IconButton(onClick = tap { sheet = Sheet.CODE }) { Icon(Icons.Rounded.Share, "Invite someone", tint = if (others.isEmpty()) warm.brick else MaterialTheme.colorScheme.onSurface) }
+                IconButton(onClick = tap { sheet = Sheet.PEOPLE }) { Icon(Icons.Rounded.Group, "People") }
+                IconButton(onClick = tap { confirmLeave = true }) { Icon(Icons.Rounded.Close, "Leave") }
             }
 
     }
@@ -169,11 +171,11 @@ fun SessionScreen(onAddSong: () -> Unit) {
                         Icon(Icons.Rounded.Apps, null, Modifier.size(56.dp), tint = warm.brick)
                         Text("Playing in $app", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 8.dp))
                         if (track.owner != session?.myId) {
-                            Button(onClick = {
+                            Button(onClick = tap {
                                 if (!com.prempoddar.duet.play.OtherApps.playInMyApp(context, track)) android.widget.Toast.makeText(context, "No music app here can play it", android.widget.Toast.LENGTH_LONG).show()
                             }, modifier = Modifier.padding(top = 12.dp)) { Text("Play in my app") }
                         }
-                        if (!access) TextButton(onClick = { context.startActivity(com.prempoddar.duet.play.OtherApps.accessSettings()) }) { Text("Let Duet keep my app in step") }
+                        if (!access) TextButton(onClick = tap { context.startActivity(com.prempoddar.duet.play.OtherApps.accessSettings()) }) { Text("Let Duet keep my app in step") }
                     }
                 } else if (track?.isStream == true) {
                     // YouTube's player, shown as YouTube asks, at the record's place.
@@ -199,7 +201,7 @@ fun SessionScreen(onAddSong: () -> Unit) {
             Column(Modifier.fillMaxWidth().padding(horizontal = 28.dp)) {
                 if (track == null) {
                     Text("Nothing's playing yet", style = MaterialTheme.typography.headlineMedium, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
-                    Button(onClick = onAddSong, modifier = Modifier.padding(top = 16.dp).align(Alignment.CenterHorizontally)) {
+                    Button(onClick = tap(onAddSong), modifier = Modifier.padding(top = 16.dp).align(Alignment.CenterHorizontally)) {
                         Icon(Icons.Rounded.Add, null); Text("  Add the first song")
                     }
                 } else {
@@ -227,7 +229,7 @@ fun SessionScreen(onAddSong: () -> Unit) {
                     if (session != null && !session.isHost && have) EarMatch(session, state.playing)
                     Slider(
                         value = dragging ?: (position.toFloat() / length.coerceAtLeast(1)).coerceIn(0f, 1f),
-                        onValueChange = { dragging = it },
+                        onValueChange = sliding(0f..1f) { dragging = it },
                         onValueChangeFinished = { dragging?.let { if (length > 0) session?.command(Command.Seek((it * length).toLong())) }; dragging = null },
                         modifier = Modifier.padding(top = 4.dp),
                     )
@@ -238,8 +240,8 @@ fun SessionScreen(onAddSong: () -> Unit) {
                     }
                 }
                 Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = { session?.heart() }) { Icon(Icons.Rounded.Favorite, "Send a heartbeat", tint = warm.brick, modifier = Modifier.size(28.dp)) }
-                    IconButton(enabled = track != null, onClick = { session?.command(Command.Previous) }) { Icon(Icons.Rounded.SkipPrevious, "Previous", Modifier.size(36.dp)) }
+                    IconButton(onClick = tap { session?.heart() }) { Icon(Icons.Rounded.Favorite, "Send a heartbeat", tint = warm.brick, modifier = Modifier.size(28.dp)) }
+                    IconButton(enabled = track != null, onClick = tap { session?.command(Command.Previous) }) { Icon(Icons.Rounded.SkipPrevious, "Previous", Modifier.size(36.dp)) }
                     Box(
                         Modifier.size(72.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary).clickable(enabled = track != null) {
                             session?.command(if (state.playing) Command.Pause else Command.Play)
@@ -248,14 +250,14 @@ fun SessionScreen(onAddSong: () -> Unit) {
                     ) {
                         Icon(if (state.playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, if (state.playing) "Pause for everyone" else "Play for everyone", tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(38.dp))
                     }
-                    IconButton(enabled = track != null, onClick = { session?.command(Command.Next) }) { Icon(Icons.Rounded.SkipNext, "Next", Modifier.size(36.dp)) }
+                    IconButton(enabled = track != null, onClick = tap { session?.command(Command.Next) }) { Icon(Icons.Rounded.SkipNext, "Next", Modifier.size(36.dp)) }
                     ReactButton { session?.react(it) }
                 }
                 Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                    TextButton(onClick = { sheet = Sheet.QUEUE }) { Icon(Icons.AutoMirrored.Rounded.QueueMusic, null); Text("  Queue · ${state.queue.size}") }
-                    if (track?.lyrics != null) TextButton(onClick = { sheet = Sheet.LYRICS }) { Icon(Icons.Rounded.Lyrics, null); Text("  Lyrics") }
-                    TextButton(onClick = onAddSong) { Icon(Icons.Rounded.Add, null); Text("  Add") }
-                    TextButton(onClick = { sheet = Sheet.CHAT }) {
+                    TextButton(onClick = tap { sheet = Sheet.QUEUE }) { Icon(Icons.AutoMirrored.Rounded.QueueMusic, null); Text("  Queue · ${state.queue.size}") }
+                    if (track?.lyrics != null) TextButton(onClick = tap { sheet = Sheet.LYRICS }) { Icon(Icons.Rounded.Lyrics, null); Text("  Lyrics") }
+                    TextButton(onClick = tap(onAddSong)) { Icon(Icons.Rounded.Add, null); Text("  Add") }
+                    TextButton(onClick = tap { sheet = Sheet.CHAT }) {
                         Icon(Icons.Outlined.ChatBubbleOutline, null)
                         val unread = (chat.size - seenChat).coerceAtLeast(0)
                         Text(if (unread > 0) "  Chat · $unread" else "  Chat")
@@ -311,8 +313,8 @@ fun SessionScreen(onAddSong: () -> Unit) {
             onDismissRequest = {},
             title = { Text("${req.name} wants to join") },
             text = { Text("They're on the same Wi-Fi as you. Let them listen along?") },
-            confirmButton = { TextButton(onClick = { sessions.approve(req) }) { Text("Let them in") } },
-            dismissButton = { TextButton(onClick = { sessions.deny(req) }) { Text("Not now") } },
+            confirmButton = { TextButton(onClick = tap { sessions.approve(req) }) { Text("Let them in") } },
+            dismissButton = { TextButton(onClick = tap { sessions.deny(req) }) { Text("Not now") } },
         )
     }
     if (confirmLeave) {
@@ -324,12 +326,12 @@ fun SessionScreen(onAddSong: () -> Unit) {
                 Column(horizontalAlignment = Alignment.End) {
                     // The host can pass the session on so the music doesn't stop.
                     if (session?.isHost == true) members.filter { !it.isHost }.forEach { m ->
-                        TextButton(onClick = { confirmLeave = false; sessions.handOver(m.id) }) { Text("Hand over to ${m.name}") }
+                        TextButton(onClick = tap { confirmLeave = false; sessions.handOver(m.id) }) { Text("Hand over to ${m.name}") }
                     }
-                    TextButton(onClick = { confirmLeave = false; sessions.leave() }) { Text(if (session?.isHost == true) "End for everyone" else "Leave") }
+                    TextButton(onClick = tap { confirmLeave = false; sessions.leave() }) { Text(if (session?.isHost == true) "End for everyone" else "Leave") }
                 }
             },
-            dismissButton = { TextButton(onClick = { confirmLeave = false }) { Text("Stay") } },
+            dismissButton = { TextButton(onClick = tap { confirmLeave = false }) { Text("Stay") } },
         )
     }
 }
@@ -338,7 +340,7 @@ fun SessionScreen(onAddSong: () -> Unit) {
 private fun ReactButton(onReact: (String) -> Unit) {
     var open by remember { mutableStateOf(false) }
     Box {
-        IconButton(onClick = { open = true }) { Text("😊", fontSize = 24.sp) }
+        IconButton(onClick = tap { open = true }) { Text("😊", fontSize = 24.sp) }
         DropdownMenu(open, onDismissRequest = { open = false }) {
             Row(Modifier.padding(horizontal = 8.dp)) {
                 QUICK.forEach { e ->
@@ -417,10 +419,10 @@ private fun CodeSheet(code: SessionCode) {
         Text(code.words.drop(3).joinToString("  "), style = MaterialTheme.typography.headlineMedium, color = warm.brick)
         Box(Modifier.padding(vertical = 18.dp).clip(MaterialTheme.shapes.medium).background(Color(0xFFFFF8F0)).padding(14.dp)) { Image(qr, "Session QR code", Modifier.size(190.dp)) }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            OutlinedButton(onClick = {
+            OutlinedButton(onClick = tap {
                 context.getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Duet code", code.toString()))
             }) { Text("Copy words") }
-            Button(onClick = {
+            Button(onClick = tap {
                 val text = "Listen with me on Duet 🎶\nOpen: ${code.link()}\nor type these words in Duet: $code"
                 context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text), "Invite"))
             }) { Text("Share invite") }
@@ -462,7 +464,7 @@ private fun QueueSheet(queue: List<TrackMeta>, index: Int, votes: Map<String, Li
     Column(Modifier.fillMaxWidth().heightIn(max = 560.dp).padding(bottom = 24.dp)) {
         Row(Modifier.fillMaxWidth().padding(start = 24.dp, end = 12.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("Up next", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
-            if (saveable.size > 1) TextButton(onClick = { save(saveable) }) { Text("Save all to phone") }
+            if (saveable.size > 1) TextButton(onClick = tap { save(saveable) }) { Text("Save all to phone") }
         }
         if (queue.isEmpty()) Text("The queue is empty. Anyone can add songs from their own phone.", modifier = Modifier.padding(24.dp), color = warm.muted)
         LazyColumn {
@@ -488,20 +490,20 @@ private fun QueueSheet(queue: List<TrackMeta>, index: Int, votes: Map<String, Li
                         if (i > index) {
                             val voters = votes[t.id].orEmpty()
                             val mineVote = session?.myId in voters
-                            TextButton(onClick = { session?.command(Command.Vote(t.id)) }) {
+                            TextButton(onClick = tap { session?.command(Command.Vote(t.id)) }) {
                                 Icon(if (mineVote) Icons.Rounded.ThumbUp else Icons.Rounded.ThumbUpOffAlt, if (mineVote) "Take back your vote" else "Vote for this song", tint = if (mineVote) warm.brick else warm.muted, modifier = Modifier.size(18.dp))
                                 if (voters.isNotEmpty()) Text(" ${voters.size}", color = warm.muted, style = MaterialTheme.typography.labelMedium)
                             }
                         }
-                        IconButton(onClick = { menu = true }) { Text("⋯") }
+                        IconButton(onClick = tap { menu = true }) { Text("⋯") }
                     }
                     DropdownMenu(menu, onDismissRequest = { menu = false }) {
-                        if (i > index + 1) DropdownMenuItem(text = { Text("Play next") }, onClick = { menu = false; session?.command(Command.Move(i, index + 1)) })
-                        DropdownMenuItem(text = { Text("Remove") }, onClick = { menu = false; session?.command(Command.Remove(t.id)) })
+                        if (i > index + 1) DropdownMenuItem(text = { Text("Play next") }, onClick = tap { menu = false; session?.command(Command.Move(i, index + 1)) })
+                        DropdownMenuItem(text = { Text("Remove") }, onClick = tap { menu = false; session?.command(Command.Remove(t.id)) })
                         when {
                             t.owner == myId || t.isStream -> Unit
-                            store.has(t.id) -> DropdownMenuItem(text = { Text("Save to phone") }, onClick = { menu = false; save(listOf(t)) })
-                            else -> DropdownMenuItem(text = { Text("Save to phone (still arriving)") }, enabled = false, onClick = {})
+                            store.has(t.id) -> DropdownMenuItem(text = { Text("Save to phone") }, onClick = tap { menu = false; save(listOf(t)) })
+                            else -> DropdownMenuItem(text = { Text("Save to phone (still arriving)") }, enabled = false, onClick = tap {})
                         }
                     }
                 }
@@ -540,7 +542,7 @@ private fun ChatSheet() {
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Send),
                 keyboardActions = KeyboardActions(onSend = { if (text.isNotBlank()) { session?.say(text); text = "" } }),
             )
-            IconButton(enabled = text.isNotBlank(), onClick = { session?.say(text); text = "" }) { Icon(Icons.AutoMirrored.Rounded.Send, "Send", tint = warm.brick) }
+            IconButton(enabled = text.isNotBlank(), onClick = tap { session?.say(text); text = "" }) { Icon(Icons.AutoMirrored.Rounded.Send, "Send", tint = warm.brick) }
         }
     }
 }
@@ -580,7 +582,7 @@ private fun EarMatch(session: com.prempoddar.duet.core.Session, playing: Boolean
         if (ok) run() else note = "Duet needs the microphone for a few seconds to hear both phones."
     }
     Row(verticalAlignment = Alignment.CenterVertically) {
-        TextButton(enabled = !busy, onClick = {
+        TextButton(enabled = !busy, onClick = tap {
             if (androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED) run()
             else ask.launch(android.Manifest.permission.RECORD_AUDIO)
         }) { Text(if (busy) "Listening…" else "Match by ear") }
