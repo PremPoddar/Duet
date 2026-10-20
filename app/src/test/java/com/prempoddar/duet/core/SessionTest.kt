@@ -194,4 +194,21 @@ class SessionTest {
         assertThat(sent).isEqualTo(Wire.chunks(song.size.toLong()))
         assertThat(s.idle).isTrue()
     }
+
+    @Test fun theHostHandsTheSessionOnAtTheSameMoment() {
+        val room = TestRoom()
+        val asha = room.join("asha", skew = 5_000)
+        val ben = room.join("ben", skew = -2_000)
+        repeat(10) { asha.session.tick(); room.settle() } // clocks settle
+        room.host.command(Command.Add(room.track("bbbbbbbbbbbbbbbb", Random(1).nextBytes(10), room.hostStore)))
+        room.settle()
+        room.hostClock += 30_000 // 30 s into the song
+        room.host.handOver(asha.session.myId)
+        room.settle()
+        val handed = asha.events.filterIsInstance<SessionEvent.HandedOver>().single()
+        assertThat(handed.newHost).isEqualTo(asha.session.myId)
+        // In Asha's clock, the song is 30 s in now.
+        assertThat(handed.state.positionAt(room.hostClock + 5_000)).isWithin(50L).of(30_000L)
+        assertThat(ben.events.filterIsInstance<SessionEvent.HandedOver>().single().newHost).isEqualTo(asha.session.myId)
+    }
 }

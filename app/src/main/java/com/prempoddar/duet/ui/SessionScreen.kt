@@ -303,8 +303,16 @@ fun SessionScreen(onAddSong: () -> Unit) {
         AlertDialog(
             onDismissRequest = { confirmLeave = false },
             title = { Text(if (session?.isHost == true) "End the session?" else "Leave the session?") },
-            text = { Text(if (session?.isHost == true) "The music stops for everyone." else "The others keep listening.") },
-            confirmButton = { TextButton(onClick = { confirmLeave = false; sessions.leave() }) { Text(if (session?.isHost == true) "End" else "Leave") } },
+            text = { Text(if (session?.isHost == true) "Hand the session to someone to keep the music going, or end it for everyone." else "The others keep listening.") },
+            confirmButton = {
+                Column(horizontalAlignment = Alignment.End) {
+                    // The host can pass the session on so the music doesn't stop.
+                    if (session?.isHost == true) members.filter { !it.isHost }.forEach { m ->
+                        TextButton(onClick = { confirmLeave = false; sessions.handOver(m.id) }) { Text("Hand over to ${m.name}") }
+                    }
+                    TextButton(onClick = { confirmLeave = false; sessions.leave() }) { Text(if (session?.isHost == true) "End for everyone" else "Leave") }
+                }
+            },
             dismissButton = { TextButton(onClick = { confirmLeave = false }) { Text("Stay") } },
         )
     }

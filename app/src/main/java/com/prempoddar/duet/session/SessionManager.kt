@@ -117,13 +117,15 @@ class SessionManager(private val context: Context) {
 
     // Hosting
 
-    fun host(name: String) {
-        reset()
+    fun host(name: String) = startHosting(name, SessionCode.generate())
+
+    /** Hosts with [code]; [initial] carries on a session handed over to this phone. */
+    private fun startHosting(name: String, code: SessionCode, initial: PlaybackState = PlaybackState(), keepSongs: Boolean = false) {
+        reset(keepSongs = keepSongs)
         myNameValue = name
-        val code = SessionCode.generate()
         _code.value = code
         val keys = code.keys
-        val host = HostSession(myId, name, clock, store, ::onEvent)
+        val host = HostSession(myId, name, clock, store, initial, ::onEvent)
         hostSession = host
         session = host
         _phase.value = Phase.Live(isHost = true)
@@ -184,8 +186,8 @@ class SessionManager(private val context: Context) {
     // Joining
 
     /** Joins with a code; uses the local network if that host is on this Wi-Fi, else the relay. */
-    fun join(code: SessionCode, name: String, lan: LanGuest? = null) {
-        reset(keepLan = lan)
+    fun join(code: SessionCode, name: String, lan: LanGuest? = null, keepSongs: Boolean = false) {
+        reset(keepLan = lan, keepSongs = keepSongs)
         myNameValue = name
         _code.value = code
         _phase.value = Phase.Connecting("Finding the session…")
@@ -305,6 +307,7 @@ class SessionManager(private val context: Context) {
             }
             is SessionEvent.Progress -> _progress.value = _progress.value + (e.trackId to e.fraction)
             is SessionEvent.Ended -> end(e.reason)
+            is SessionEvent.HandedOver -> carryOn(e)
             // Ticks come out as early as the music does, so they show where the music really is.
             is SessionEvent.Ticks -> com.prempoddar.duet.play.TickPlayer.play(
                 e.at, com.prempoddar.duet.core.EarSync.HOST_HZ, com.prempoddar.duet.AppGraph.player.let { it.settings.nudge(it.output.value) }.toLong(),
@@ -345,7 +348,34 @@ class SessionManager(private val context: Context) {
         _phase.value = Phase.Ended(message)
     }
 
-    private fun reset(keepLan: LanGuest? = null) {
+    private fun rejoin(code: SessionCode, name: String) = join(code, name, keepSongs = true)
+
+    /** Leaves as host, handing the session to [guestId]. */
+    fun handOver(guestId: String) {
+        hostSession?.handOver(guestId)
+        reset()
+        _phase.value = Phase.Idle
+    }
+
+    /**
+     * The host left and named a new one. That phone hosts under the same code from the same
+     * moment; everyone else reconnects to it a few seconds later. Songs already here are kept.
+     */
+    private fun carryOn(e: SessionEvent.HandedOver) {
+        val code = _code.value ?: return end("The host left")
+        val name = myNameValue
+        if (e.newHost == myId) {
+            startHosting(name, code, e.state.copy(version = e.state.version + 1), keepSongs = true)
+        } else {
+            _phase.value = Phase.Connecting("The host left — reconnecting…")
+            scope.launch {
+                kotlinx.coroutines.delay(HANDOVER_WAIT_MS)
+                rejoin(code, name)
+            }
+        }
+    }
+
+    private fun reset(keepLan: LanGuest? = null, keepSongs: Boolean = false) {
         ticker?.cancel(); ticker = null
         peers.values.forEach { it.link.close() }; peers.clear()
         hostPeer?.link?.close(); hostPeer = null
@@ -354,7 +384,7 @@ class SessionManager(private val context: Context) {
         if (lanGuest !== keepLan) lanGuest?.close()
         lanGuest = null
         session = null; hostSession = null; guestSession = null
-        store.clear()
+        if (!keepSongs) store.clear()
         _state.value = PlaybackState(); _members.value = emptyList(); _chat.value = emptyList()
         _progress.value = emptyMap(); _code.value = null; _pairRequests.value = emptyList(); _relay.value = false
         myId = randomId()
@@ -362,6 +392,8 @@ class SessionManager(private val context: Context) {
 
     companion object {
         private const val TICK_MS = 50L
+        /** How long guests give the new host to come up before reconnecting. */
+        private const val HANDOVER_WAIT_MS = 3_000L
         private const val JOIN_TIMEOUT_MS = 30_000L
         const val NO_DIRECT_PATH = "Your two networks won't let the phones connect directly — some mobile networks block it. Try with one of you on Wi-Fi."
         const val NO_RELAY = "Couldn't reach the connection relay. Check that you're online, or join from the same Wi-Fi."

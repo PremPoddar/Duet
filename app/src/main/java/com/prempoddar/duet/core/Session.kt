@@ -32,6 +32,8 @@ sealed interface SessionEvent {
     data class Ended(val reason: String) : SessionEvent
     /** Play ticks at these times of this phone's clock, for a guest matching by ear. */
     data class Ticks(val at: List<Long>) : SessionEvent
+    /** The host left and handed the session to [newHost]; [state]'s times are in this phone's clock. */
+    data class HandedOver(val newHost: String, val state: PlaybackState) : SessionEvent
 }
 
 /** What the UI and player use, whichever side of the session this phone is on. */
@@ -95,12 +97,13 @@ class HostSession(
     private val myName: String,
     private val clock: () -> Long,
     private val store: TrackStore,
+    initial: PlaybackState = PlaybackState(),
     private val events: (SessionEvent) -> Unit,
 ) : Session {
     private class Guest(val link: Link, val id: String, val name: String, val have: MutableSet<String>)
 
     override val isHost = true
-    override var state = PlaybackState()
+    override var state = initial
         private set
     private val guests = LinkedHashMap<String, Guest>()
     private val _chat = ArrayList<ChatLine>()
@@ -201,6 +204,14 @@ class HostSession(
     @Synchronized override fun addTrack(meta: TrackMeta) = apply(Command.Add(meta.copy(owner = myId)))
 
     @Synchronized override fun tick() = sender.pump()
+
+    /** Leaves, giving the session to [guestId] so the music carries on. */
+    @Synchronized fun handOver(guestId: String) {
+        if (guests.values.none { it.id == guestId }) return leave()
+        fan(null, Msg.Handover(guestId, state))
+        guests.values.forEach { it.link.close() }
+        guests.clear()
+    }
 
     @Synchronized override fun leave() {
         fan(null, Msg.Bye("The host ended the session"))
@@ -310,6 +321,12 @@ class GuestSession(
             is Msg.React -> events(SessionEvent.Reaction(msg.from, nameOf(msg.from), msg.emoji))
             is Msg.Heart -> events(SessionEvent.Heart(msg.from, nameOf(msg.from)))
             is Msg.Want -> link?.let { sender.start(it, msg.trackId); sender.pump() }
+            is Msg.Handover -> {
+                // The old host's clock: turn its times into this phone's, so the new host (whoever
+                // it is) can carry on from the same moment.
+                val toLocal = clock() - sync.hostNow(clock())
+                events(SessionEvent.HandedOver(msg.newHost, msg.state.copy(anchor = msg.state.anchor + toLocal)))
+            }
             is Msg.Bye -> events(SessionEvent.Ended(msg.reason.ifEmpty { "The session ended" }))
             else -> Unit
         }

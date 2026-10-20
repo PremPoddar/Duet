@@ -30,6 +30,8 @@ sealed class Msg {
     @Serializable @SerialName("want") data class Want(val trackId: String) : Msg()
     /** A guest asks the host to tick at these host times, to match their sound by ear. */
     @Serializable @SerialName("ticks") data class Ticks(val at: List<Long>) : Msg()
+    /** The host is leaving and [newHost] takes over; [state] is in the old host's clock. */
+    @Serializable @SerialName("handover") data class Handover(val newHost: String, val state: PlaybackState) : Msg()
     @Serializable @SerialName("bye") data class Bye(val reason: String = "") : Msg()
 
     fun encode(): String = Wire.json.encodeToString(serializer(), this)
