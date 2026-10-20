@@ -144,6 +144,8 @@ class HostSession(
                         link.sendText(Msg.Want(track.id).encode())
                     }
                     apply(Command.Add(track))
+                } else if (cmd is Command.Vote) {
+                    apply(cmd.copy(by = guest.id))
                 } else {
                     apply(cmd)
                 }
@@ -184,7 +186,7 @@ class HostSession(
         membersChanged()
     }
 
-    @Synchronized override fun command(cmd: Command) = apply(cmd)
+    @Synchronized override fun command(cmd: Command) = apply(if (cmd is Command.Vote) cmd.copy(by = myId) else cmd)
 
     @Synchronized override fun say(text: String) = post(myId, myName, text)
 

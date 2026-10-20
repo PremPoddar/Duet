@@ -92,4 +92,19 @@ class StateTest {
         assertThat(f.bytes).isEqualTo(byteArrayOf(7, 8))
         assertThat(Wire.parseFrame(ByteArray(5))).isNull()
     }
+
+    @Test fun votesMoveUpcomingSongsUpAndCanBeTakenBack() {
+        var s = PlaybackState()
+        listOf(a, b, c).forEach { s = Reducer.apply(s, Command.Add(it), 0) }
+        s = Reducer.apply(s, Command.Vote(c.id, by = "g1"), 0)
+        assertThat(s.queue.map { it.id }).containsExactly(a.id, c.id, b.id).inOrder()
+        s = Reducer.apply(s, Command.Vote(c.id, by = "g1"), 0) // taken back
+        assertThat(s.votes).isEmpty()
+        assertThat(Reducer.apply(s, Command.Vote(a.id, by = "g1"), 0).votes).isEmpty() // the playing song can't be voted
+    }
+
+    @Test fun aStreamCanBeSeekedBeforeItsLengthIsKnown() {
+        val s = Reducer.apply(PlaybackState(), Command.Add(YouTube.track("dQw4w9WgXcQ", "x", "", "h")), 0)
+        assertThat(Reducer.apply(s, Command.Seek(42_000), 0).positionMs).isEqualTo(42_000)
+    }
 }

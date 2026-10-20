@@ -38,6 +38,8 @@ data class PlaybackState(
     val anchor: Long = 0,
     val playing: Boolean = false,
     val version: Long = 0,
+    /** Who wants each upcoming song sooner: track id → member ids. */
+    val votes: Map<String, List<String>> = emptyMap(),
 ) {
     val current: TrackMeta? get() = queue.getOrNull(index)
 
@@ -62,6 +64,8 @@ sealed class Command {
     @Serializable @SerialName("move") data class Move(val from: Int, val to: Int) : Command()
     /** A player reached the end of [trackId]; ignored if the queue already moved on. */
     @Serializable @SerialName("ended") data class Ended(val trackId: String) : Command()
+    /** [by] is filled in by the host from who sent it, so nobody can vote as someone else. */
+    @Serializable @SerialName("vote") data class Vote(val trackId: String, val by: String = "") : Command()
 }
 
 /** How commands change the shared state. Pure; only the host runs it. */
@@ -80,7 +84,9 @@ object Reducer {
             Command.Pause -> if (!s.playing) return s else s.copy(positionMs = pos, anchor = now, playing = false)
             is Command.Seek -> {
                 val track = s.current ?: return s
-                s.copy(positionMs = cmd.positionMs.coerceIn(0, track.durationMs), anchor = now)
+                // A stream's length isn't in the queue entry; don't clamp to zero.
+                val max = if (track.durationMs > 0) track.durationMs else Long.MAX_VALUE
+                s.copy(positionMs = cmd.positionMs.coerceIn(0, max), anchor = now)
             }
             Command.Next -> step(s, s.index + 1, now)
             Command.Previous -> if (pos > RESTART_IF_PAST_MS || s.index <= 0) s.copy(positionMs = 0, anchor = now) else step(s, s.index - 1, now)
@@ -111,8 +117,25 @@ object Reducer {
                 s.copy(queue = queue, index = queue.indexOfFirst { it.id == currentId })
             }
             is Command.Ended -> if (s.current?.id != cmd.trackId) return s else step(s, s.index + 1, now)
+            is Command.Vote -> {
+                val at = s.queue.indexOfFirst { it.id == cmd.trackId }
+                // Only upcoming songs: the one playing and those played are settled.
+                if (at <= s.index || cmd.by.isBlank()) return s
+                val voters = s.votes[cmd.trackId].orEmpty()
+                val now2 = if (cmd.by in voters) voters - cmd.by else voters + cmd.by
+                val votes = (s.votes + (cmd.trackId to now2)).filterValues { it.isNotEmpty() }
+                reorder(s.copy(votes = votes))
+            }
         }
         return next.copy(version = s.version + 1)
+    }
+
+    /** Upcoming songs with more votes move up; equal ones keep the order they were added in. */
+    fun reorder(s: PlaybackState): PlaybackState {
+        if (s.index < 0) return s
+        val played = s.queue.take(s.index + 1)
+        val upcoming = s.queue.drop(s.index + 1).sortedByDescending { s.votes[it.id]?.size ?: 0 }
+        return s.copy(queue = played + upcoming)
     }
 
     private fun step(s: PlaybackState, to: Int, now: Long): PlaybackState = when {
