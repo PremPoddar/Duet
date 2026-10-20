@@ -1,5 +1,8 @@
 package com.prempoddar.duet.ui
 
+import androidx.compose.material.icons.rounded.Lyrics
+import androidx.compose.material.icons.rounded.ThumbUpOffAlt
+import androidx.compose.material.icons.rounded.ThumbUp
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.ImeAction
@@ -107,7 +110,7 @@ import kotlinx.coroutines.launch
 
 private val QUICK = listOf("❤️", "🔥", "😂", "😭", "🎶", "👏")
 
-private enum class Sheet { CODE, QUEUE, CHAT, PEOPLE }
+private enum class Sheet { CODE, QUEUE, CHAT, PEOPLE, LYRICS }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -234,6 +237,7 @@ fun SessionScreen(onAddSong: () -> Unit) {
                 }
                 Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                     TextButton(onClick = { sheet = Sheet.QUEUE }) { Icon(Icons.AutoMirrored.Rounded.QueueMusic, null); Text("  Queue · ${state.queue.size}") }
+                    if (track?.lyrics != null) TextButton(onClick = { sheet = Sheet.LYRICS }) { Icon(Icons.Rounded.Lyrics, null); Text("  Lyrics") }
                     TextButton(onClick = onAddSong) { Icon(Icons.Rounded.Add, null); Text("  Add") }
                     TextButton(onClick = { sheet = Sheet.CHAT }) {
                         Icon(Icons.Outlined.ChatBubbleOutline, null)
@@ -266,7 +270,8 @@ fun SessionScreen(onAddSong: () -> Unit) {
 
     when (sheet) {
         Sheet.CODE -> ModalBottomSheet(onDismissRequest = { sheet = null }) { code?.let { CodeSheet(it) } }
-        Sheet.QUEUE -> ModalBottomSheet(onDismissRequest = { sheet = null }) { QueueSheet(state.queue, state.index) }
+        Sheet.QUEUE -> ModalBottomSheet(onDismissRequest = { sheet = null }) { QueueSheet(state.queue, state.index, state.votes) }
+        Sheet.LYRICS -> ModalBottomSheet(onDismissRequest = { sheet = null }) { LyricsSheet(track?.lyrics.orEmpty()) { session?.let { state.positionAt(it.hostNow()) } ?: 0 } }
         Sheet.CHAT -> ModalBottomSheet(onDismissRequest = { sheet = null }) { ChatSheet() }
         Sheet.PEOPLE -> ModalBottomSheet(onDismissRequest = { sheet = null }) {
             Column(Modifier.padding(horizontal = 24.dp).padding(bottom = 32.dp)) {
@@ -407,7 +412,7 @@ private fun qr(text: String, size: Int = 600): ImageBitmap {
 }
 
 @Composable
-private fun QueueSheet(queue: List<TrackMeta>, index: Int) {
+private fun QueueSheet(queue: List<TrackMeta>, index: Int, votes: Map<String, List<String>> = emptyMap()) {
     val warm = LocalWarm.current
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
@@ -455,6 +460,15 @@ private fun QueueSheet(queue: List<TrackMeta>, index: Int) {
                             Text(t.artist.ifBlank { time(t.durationMs) }, style = MaterialTheme.typography.bodySmall, color = warm.muted, maxLines = 1)
                         }
                         if (i == index) Text("NOW", style = MaterialTheme.typography.labelSmall, color = warm.brick)
+                        // Vote for an upcoming song to hear it sooner; tap again to take the vote back.
+                        if (i > index) {
+                            val voters = votes[t.id].orEmpty()
+                            val mineVote = session?.myId in voters
+                            TextButton(onClick = { session?.command(Command.Vote(t.id)) }) {
+                                Icon(if (mineVote) Icons.Rounded.ThumbUp else Icons.Rounded.ThumbUpOffAlt, if (mineVote) "Take back your vote" else "Vote for this song", tint = if (mineVote) warm.brick else warm.muted, modifier = Modifier.size(18.dp))
+                                if (voters.isNotEmpty()) Text(" ${voters.size}", color = warm.muted, style = MaterialTheme.typography.labelMedium)
+                            }
+                        }
                         IconButton(onClick = { menu = true }) { Text("⋯") }
                     }
                     DropdownMenu(menu, onDismissRequest = { menu = false }) {
@@ -547,5 +561,26 @@ private fun EarMatch(session: com.prempoddar.duet.core.Session, playing: Boolean
             else ask.launch(android.Manifest.permission.RECORD_AUDIO)
         }) { Text(if (busy) "Listening…" else "Match by ear") }
         note?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f)) }
+    }
+}
+
+/** The song's lyrics; with timed lyrics the line being sung is lit and kept in view. */
+@Composable
+private fun LyricsSheet(text: String, position: () -> Long) {
+    val warm = LocalWarm.current
+    val lines = remember(text) { com.prempoddar.duet.core.Lyrics.parse(text) }
+    var now by remember { mutableStateOf(-1) }
+    LaunchedEffect(lines) { while (true) { now = com.prempoddar.duet.core.Lyrics.current(lines, position()); kotlinx.coroutines.delay(200) } }
+    val list = androidx.compose.foundation.lazy.rememberLazyListState()
+    LaunchedEffect(now) { if (now >= 0) list.animateScrollToItem((now - 2).coerceAtLeast(0)) }
+    LazyColumn(state = list, modifier = Modifier.fillMaxWidth().heightIn(max = 560.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 28.dp, vertical = 16.dp)) {
+        itemsIndexed(lines) { i, line ->
+            Text(
+                line.text.ifEmpty { "♪" },
+                style = if (i == now) MaterialTheme.typography.titleLarge else MaterialTheme.typography.bodyLarge,
+                color = if (now < 0 || i == now) MaterialTheme.colorScheme.onSurface else warm.muted,
+                modifier = Modifier.padding(vertical = 6.dp),
+            )
+        }
     }
 }

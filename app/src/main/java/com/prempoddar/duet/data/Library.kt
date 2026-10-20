@@ -51,6 +51,21 @@ object Library {
     class TooBig : Exception("Songs can be up to 50 MB")
 
     /** Copies a song into the session's store (named by its content hash) and describes it. */
+    /**
+     * A .lrc file with the song's name in the same folder (where Android lets us read it), else
+     * lyrics stored in the song's own tag.
+     */
+    private fun lyricsFor(context: Context, uri: Uri, file: File?): String? {
+        val sidecar = runCatching {
+            context.contentResolver.query(uri, arrayOf(android.provider.MediaStore.MediaColumns.DATA), null, null, null)?.use { c ->
+                if (c.moveToFirst()) c.getString(0) else null
+            }?.let { path -> File(path.substringBeforeLast('.') + ".lrc").takeIf { it.canRead() }?.readText() }
+        }.getOrNull()
+        if (!sidecar.isNullOrBlank()) return sidecar
+        val head = file?.let { f -> runCatching { f.inputStream().use { it.readNBytes(512 * 1024) } }.getOrNull() } ?: return null
+        return com.prempoddar.duet.core.Lyrics.fromId3(head)
+    }
+
     suspend fun import(context: Context, uri: Uri, store: FileTrackStore, owner: String): TrackMeta = withContext(Dispatchers.IO) {
         val tmp = File(context.cacheDir, "import-${System.nanoTime()}")
         val md = MessageDigest.getInstance("SHA-256")
@@ -90,6 +105,7 @@ object Library {
                 owner = owner,
                 art = r.embeddedPicture?.let(::smallArt),
                 digest = digest,
+                lyrics = lyricsFor(context, uri, store.file(id))?.take(com.prempoddar.duet.core.Lyrics.MAX_CHARS),
             )
         } finally {
             r.release()
