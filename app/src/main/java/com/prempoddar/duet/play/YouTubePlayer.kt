@@ -36,8 +36,13 @@ object YouTubePlayer {
     val playing get() = state == PLAYING
     val ended get() = state == ENDED
 
-    /** Where the video is now: the last report, carried forward while it plays. */
-    fun positionMs(): Long = if (playing) reportedMs + (SystemClock.elapsedRealtime() - reportedAt) else reportedMs
+    private val estimate = com.prempoddar.duet.core.StreamClock()
+
+    /**
+     * Where the video is now. While it plays, YouTube's reported time lags by up to a few hundred
+     * milliseconds, so this is the freshest of the recent reports carried forward (see [StreamClock]).
+     */
+    fun positionMs(): Long = if (playing) estimate.now(SystemClock.elapsedRealtime()) ?: reportedMs else reportedMs
 
     /** The web view to show on screen; made once and reused. */
     fun view(context: Context): WebView = web ?: WebView(context).apply {
@@ -59,7 +64,8 @@ object YouTubePlayer {
     }
 
     fun load(id: String, startMs: Long, play: Boolean) {
-        videoId = id; state = UNSTARTED; reportedMs = startMs; reportedAt = SystemClock.elapsedRealtime()
+        videoId = id; state = UNSTARTED; reportedMs = startMs; reportedAt = SystemClock.elapsedRealtime(); estimate.reset()
+        rate = 1.0; estimate.setRate(1.0)
         _durationMs.value = 0; _error.value = null
         val seconds = startMs / 1000.0
         js(if (play) "load('$id',$seconds)" else "cue('$id',$seconds)")
@@ -79,10 +85,20 @@ object YouTubePlayer {
         return kotlinx.coroutines.withTimeoutOrNull(20_000) { wait.await() }.orEmpty().also { lists.remove(listId) }
     }
 
+    /** The speed asked for, and the one YouTube actually took (it may round or refuse). */
+    @Volatile var rate = 1.0; private set
+    @Volatile var rateWorks: Boolean? = null; private set
+
+    fun setRate(r: Double) {
+        if (r == rate) return
+        rate = r
+        js("rate($r)")
+    }
+
     fun play() = js("player&&player.playVideo()")
     fun pause() = js("player&&player.pauseVideo()")
     fun seek(ms: Long) {
-        reportedMs = ms; reportedAt = SystemClock.elapsedRealtime()
+        reportedMs = ms; reportedAt = SystemClock.elapsedRealtime(); estimate.reset()
         js("player&&player.seekTo(${ms / 1000.0},true)")
     }
 
@@ -108,8 +124,16 @@ object YouTubePlayer {
             waiting.clear()
         }
         @JavascriptInterface fun time(ms: Long, duration: Long, s: Int) {
-            reportedMs = ms; reportedAt = SystemClock.elapsedRealtime(); state = s
+            val now = SystemClock.elapsedRealtime()
+            if (s != state || s != PLAYING) estimate.reset()
+            if (s == PLAYING) estimate.add(now, ms)
+            reportedMs = ms; reportedAt = now; state = s
             if (duration > 0) _durationMs.value = duration
+        }
+        /** What speed the player says it's at after being asked for [asked]. */
+        @JavascriptInterface fun rate(asked: Double, actual: Double) {
+            if (asked != 1.0) rateWorks = kotlin.math.abs(asked - actual) < 0.001
+            estimate.setRate(actual)
         }
         @JavascriptInterface fun playlist(listId: String, json: String) {
             val ids = runCatching { org.json.JSONArray(json).let { a -> (0 until a.length()).map { a.getString(it) } } }.getOrDefault(emptyList())
@@ -178,12 +202,21 @@ object YouTubePlayer {
           };
           if (apiReady) go(); else pending = go;
         }
+        function rate(r) { if (!player || !player.setPlaybackRate) return; player.setPlaybackRate(r); setTimeout(function () { Duet.rate(r, player.getPlaybackRate()); }, 300); }
         function load(id, s) { show(id, s, true); }
         function cue(id, s) { show(id, s, false); }
         Duet.page();
+        // The player's time only changes every few hundred ms. Looking often and reporting the
+        // moment it changes gives the app fresh readings (plus one a second regardless).
+        var lastT = -1, lastS = -2, lastSent = 0;
         setInterval(function () {
-          if (player && player.getCurrentTime) Duet.time(Math.round(player.getCurrentTime() * 1000), Math.round((player.getDuration() || 0) * 1000), player.getPlayerState());
-        }, 200);
+          if (!player || !player.getCurrentTime) return;
+          var t = Math.round(player.getCurrentTime() * 1000), s = player.getPlayerState(), now = Date.now();
+          if (t !== lastT || s !== lastS || now - lastSent > 1000) {
+            lastT = t; lastS = s; lastSent = now;
+            Duet.time(t, Math.round((player.getDuration() || 0) * 1000), s);
+          }
+        }, 50);
         </script></body></html>
     """.trimIndent()
 }

@@ -22,7 +22,7 @@ class SyncTest {
     }
 
     @Test fun oldSamplesAgeOut() {
-        val c = ClockSync(window = 3)
+        val c = ClockSync(keep = 3)
         c.add(0, 5_010, 20)
         repeat(3) { i -> c.add(1_000L * (i + 1), 1_000L * (i + 1) + 6_100, 1_000L * (i + 1) + 200) }
         assertThat(c.offset).isEqualTo(6_000)
@@ -32,4 +32,25 @@ class SyncTest {
         assertThat(ClockSync().offset).isNull()
     }
 
+    @Test fun pingsStuckBehindSongDataAreIgnored() {
+        val c = ClockSync()
+        // A good start, then two minutes of replies held up 1-3 s on the way back.
+        c.add(0, 5_010, 20)
+        for (i in 1..60) { val t0 = i * 2_000L; val down = 1_000L + (i % 3) * 1_000; c.add(t0, t0 + 5_000 + 10, t0 + 10 + down) }
+        assertThat(c.hostNow(200_000) - 200_000).isWithin(5).of(5_000)
+    }
+
+    @Test fun followsAClockRunningFast() {
+        val c = ClockSync()
+        // The host gains 100 ppm: 6 ms a minute. Over 5 minutes the offset moves 30 ms.
+        for (i in 0..150) {
+            val t0 = i * 2_000L
+            val offset = 5_000 + t0 / 10_000
+            c.add(t0, t0 + 10 + offset, t0 + 20)
+        }
+        assertThat(c.skewPpm).isWithin(10.0).of(100.0)
+        // Ten minutes on, still right to a few ms (a fixed offset would be 30 ms out).
+        val later = 900_000L
+        assertThat(c.hostNow(later) - later).isWithin(5).of(5_000 + later / 10_000)
+    }
 }

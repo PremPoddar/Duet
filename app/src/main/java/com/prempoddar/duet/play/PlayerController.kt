@@ -159,6 +159,7 @@ class PlayerController(private val context: Context, private val sessions: Sessi
         }
         if (!st.playing) {
             if (yt.playing) yt.pause()
+            yt.setRate(1.0)
             if (kotlin.math.abs(yt.positionMs() - target) > 700) yt.seek(target.coerceAtLeast(0))
             _drift.value = 0
             return
@@ -175,12 +176,27 @@ class PlayerController(private val context: Context, private val sessions: Sessi
             checkAfterSeek = false
             streamLead = (streamLead + drift).coerceIn(0, MAX_STREAM_LEAD_MS)
         }
-        if (kotlin.math.abs(drift) > STREAM_TOLERANCE_MS && now - lastStreamSeek > STREAM_SEEK_GAP_MS) {
-            android.util.Log.i("DuetSync", "stream drift ${drift} ms, jumping with lead $streamLead")
+        if (now - lastStreamSeek < 2_000) return
+        val size = kotlin.math.abs(drift)
+        // Small drift is eased out by playing 5% faster or slower, where YouTube allows it; that's
+        // silent, while a jump means a moment of buffering. Big drift, or no fine speeds, jumps.
+        val canEase = yt.rateWorks != false
+        val jumpOver = if (canEase) STREAM_JUMP_OVER_MS else STREAM_TOLERANCE_MS
+        if (size > jumpOver && now - lastStreamSeek > STREAM_SEEK_GAP_MS) {
+            android.util.Log.i("DuetSync", "stream drift $drift ms, jumping with lead $streamLead")
+            yt.setRate(1.0)
             yt.seek((target + streamLead).coerceAtLeast(0))
             lastStreamSeek = now
             checkAfterSeek = true
+            return
         }
+        if (!canEase) return
+        val wanted = when {
+            size < STREAM_EASED_MS -> 1.0
+            size > STREAM_EASE_FROM_MS -> if (drift > 0) 1.05 else 0.95
+            else -> yt.rate
+        }
+        yt.setRate(wanted)
     }
 
     private var lastExternalCheck = 0L
@@ -222,10 +238,13 @@ class PlayerController(private val context: Context, private val sessions: Sessi
 
     companion object {
         private const val STEP_MS = 200L
-        private const val STREAM_TOLERANCE_MS = 350L
+        private const val STREAM_TOLERANCE_MS = 200L
+        private const val STREAM_JUMP_OVER_MS = 1_200L
+        private const val STREAM_EASE_FROM_MS = 50L
+        private const val STREAM_EASED_MS = 15L
         private const val STREAM_JUMP_LEAD_MS = 300L
         private const val MAX_STREAM_LEAD_MS = 2_000L
-        private const val STREAM_SEEK_GAP_MS = 6_000L
+        private const val STREAM_SEEK_GAP_MS = 4_000L
         private const val END_MARGIN_MS = 150L
         private val BT = setOf(AudioDeviceInfo.TYPE_BLUETOOTH_A2DP, AudioDeviceInfo.TYPE_HEARING_AID, 26, 27)
         private val WIRED = setOf(AudioDeviceInfo.TYPE_WIRED_HEADPHONES, AudioDeviceInfo.TYPE_WIRED_HEADSET, AudioDeviceInfo.TYPE_USB_HEADSET)

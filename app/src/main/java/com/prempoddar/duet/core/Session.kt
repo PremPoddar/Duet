@@ -356,7 +356,7 @@ class GuestSession(
     /** Pings quickly until the clock estimate settles, then every few seconds. */
     @Synchronized override fun tick() {
         val now = clock()
-        val every = if (sync.count < 8) 250 else 3_000
+        val every = if (sync.count < 8) 250 else 2_000
         if (now - lastPing >= every) ping()
         sender.pump()
     }
