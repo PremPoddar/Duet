@@ -115,6 +115,11 @@ real phones.
 
 ## 🗂️ Project layout
 
+<p align="center"><img src=".github/assets/modules.png" alt="Duet source packages and what each one does" width="100%"></p>
+
+<details>
+<summary><strong>As text</strong></summary>
+
 ```
 core/     pure Kotlin: session codes, sealing, pairing, clock sync, drift control,
           playback state and commands, protocol, host and guest session logic, lyrics
@@ -124,6 +129,8 @@ play/     ExoPlayer sync loop, YouTube player, other apps, media session service
 session/  wires a live session together
 ui/       Compose screens, the record
 ```
+
+</details>
 
 ## 📄 License
 
