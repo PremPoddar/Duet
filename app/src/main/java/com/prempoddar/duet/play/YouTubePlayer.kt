@@ -58,6 +58,9 @@ object YouTubePlayer {
                 return true
             }
         }
+        webViewClient = object : android.webkit.WebViewClient() {
+            override fun shouldInterceptRequest(view: WebView, request: android.webkit.WebResourceRequest) = NoAds.intercept(request)
+        }
         // A real origin, so the embedded player accepts the page as a site embedding it.
         loadDataWithBaseURL("https://prempoddar.github.io/", PAGE, "text/html", "utf-8", null)
         web = this
