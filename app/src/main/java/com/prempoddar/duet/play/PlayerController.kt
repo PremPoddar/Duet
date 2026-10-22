@@ -86,6 +86,9 @@ class PlayerController(private val context: Context, private val sessions: Sessi
                 if (player.isPlaying) player.pause()
                 return
             }
+            // Loaded paused: ExoPlayer would otherwise start the new song from 0:00 by itself,
+            // skipping the aligned start below and leaving it off by however long loading took.
+            player.playWhenReady = false
             val art = track.art?.let { runCatching { Base64.decode(it, Base64.NO_WRAP) }.getOrNull() }
             player.setMediaItem(
                 MediaItem.Builder().setUri(android.net.Uri.fromFile(file)).setMediaId(track.id)
@@ -121,7 +124,19 @@ class PlayerController(private val context: Context, private val sessions: Sessi
             player.seekTo((target + sync.startLeadMs).coerceAtLeast(0))
             player.play()
             sync.started()
+            lastMove = moveOf(st)
             return
+        }
+        // Someone jumped, skipped back to the start or scrubbed: every phone lines up at once
+        // rather than waiting for the drift readings to notice.
+        if (moveOf(st) != lastMove) {
+            lastMove = moveOf(st)
+            if (kotlin.math.abs(target - player.currentPosition) > MOVE_REALIGN_MS) {
+                setSpeed(1f)
+                player.seekTo((target + sync.startLeadMs).coerceAtLeast(0))
+                sync.started()
+                return
+            }
         }
         when (val a = sync.step(target, player.currentPosition)) {
             com.prempoddar.duet.core.SyncController.Action.None -> Unit
@@ -133,6 +148,10 @@ class PlayerController(private val context: Context, private val sessions: Sessi
         }
         _drift.value = sync.drift
     }
+
+    /** The shared state's last jump (its song, anchor and position), to notice the next one. */
+    private var lastMove: Triple<String?, Long, Long>? = null
+    private fun moveOf(st: com.prempoddar.duet.core.PlaybackState) = Triple(st.current?.id, st.anchor, st.positionMs)
 
     private var lastStreamSeek = 0L
     /** How far ahead to aim a jump, learnt from how far behind the video is after one. */
@@ -149,8 +168,12 @@ class PlayerController(private val context: Context, private val sessions: Sessi
         val now = android.os.SystemClock.elapsedRealtime()
         val target = st.positionAt(session.hostNow()) + settings.nudge(_output.value)
         if (yt.videoId != track.youtube) {
-            yt.load(track.youtube!!, target.coerceAtLeast(0), st.playing)
+            // Aimed ahead by what loading and starting have cost before, and checked once it
+            // plays, so a new video starts in step instead of being pulled in afterwards.
+            yt.load(track.youtube!!, (target + if (st.playing) streamLead else 0).coerceAtLeast(0), st.playing)
             lastStreamSeek = now
+            checkAfterSeek = st.playing
+            lastMove = moveOf(st)
             return
         }
         if (yt.ended) {
@@ -171,6 +194,16 @@ class PlayerController(private val context: Context, private val sessions: Sessi
         }
         val drift = target - yt.positionMs()
         _drift.value = drift
+        if (moveOf(st) != lastMove) {
+            lastMove = moveOf(st)
+            if (kotlin.math.abs(drift) > MOVE_REALIGN_MS) {
+                yt.setRate(1.0)
+                yt.seek((target + streamLead).coerceAtLeast(0))
+                lastStreamSeek = now
+                checkAfterSeek = true
+                return
+            }
+        }
         // Once playing again after a jump, whatever is still off is how much the jump itself cost.
         if (checkAfterSeek && now - lastStreamSeek > 2_000) {
             checkAfterSeek = false
@@ -246,6 +279,8 @@ class PlayerController(private val context: Context, private val sessions: Sessi
         private const val MAX_STREAM_LEAD_MS = 2_000L
         private const val STREAM_SEEK_GAP_MS = 4_000L
         private const val END_MARGIN_MS = 150L
+        /** After a shared jump, anything further off than this is lined up straight away. */
+        private const val MOVE_REALIGN_MS = 150L
         private val BT = setOf(AudioDeviceInfo.TYPE_BLUETOOTH_A2DP, AudioDeviceInfo.TYPE_HEARING_AID, 26, 27)
         private val WIRED = setOf(AudioDeviceInfo.TYPE_WIRED_HEADPHONES, AudioDeviceInfo.TYPE_WIRED_HEADSET, AudioDeviceInfo.TYPE_USB_HEADSET)
     }
