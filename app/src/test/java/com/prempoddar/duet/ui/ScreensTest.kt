@@ -4,6 +4,7 @@ import android.app.Application
 import android.graphics.Bitmap
 import androidx.compose.runtime.Composable
 import androidx.activity.ComponentActivity
+import androidx.compose.foundation.background
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.test.core.app.ApplicationProvider
 import com.prempoddar.duet.AppGraph
@@ -26,7 +27,10 @@ import java.io.File
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(application = Application::class, sdk = [34], qualifiers = "w411dp-h891dp-xxhdpi")
-class ScreensTest {
+open class ScreensTest {
+    /** Where the pictures go; the tablet runs below draw the same screens into their own folders. */
+    protected open val out = "build/screens"
+
     @get:Rule val rule = createAndroidComposeRule<ComponentActivity>()
 
     @Before fun setUp() {
@@ -38,7 +42,7 @@ class ScreensTest {
         rule.mainClock.autoAdvance = false
         rule.setContent { DuetTheme(appearance, content) }
         rule.mainClock.advanceTimeBy(1_000)
-        val dir = File("build/screens").apply { mkdirs() }
+        val dir = File(out).apply { mkdirs() }
         val view = rule.activity.window.decorView
         val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
         rule.runOnUiThread { view.draw(android.graphics.Canvas(bitmap)) }
@@ -52,6 +56,22 @@ class ScreensTest {
     @Test fun homeDark() = shoot("home-dark", dark) { HomeScreen(DuetSettings(name = "Prem"), {}, {}) }
     @Test fun settingsDark() = shoot("settings-dark", dark) { SettingsScreen({}, {}, {}) }
     @Test fun appearanceLight() = shoot("appearance-light", light) { AppearanceScreen(light, DUET_BRAND, {}, {}) }
+    private fun song(id: String, title: String, artist: String, ms: Long, youtube: String? = null) =
+        com.prempoddar.duet.core.TrackMeta(id.padEnd(16, '0'), title, artist, durationMs = ms, mime = "audio/mpeg", size = 1, owner = "x", digest = "", youtube = youtube)
+
+    @Test fun queueDark() = shoot("queue-dark", dark) {
+        androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.background(androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow)) {
+            QueueSheet(
+                listOf(
+                    song("a1", "Golden Hour", "The Lanterns", 214_000), song("a2", "Slow Tides", "Mira Vale", 248_000),
+                    song("a3", "Paper Planes", "June & the Coast", 197_000), song("a4", "Night Drive", "Neon Coast", 0, youtube = "x"),
+                    song("a5", "Late Bloom", "Ola Reyes", 231_000),
+                ),
+                index = 1, votes = mapOf("a4".padEnd(16, '0') to listOf("p", "q")), playing = true,
+            )
+        }
+    }
+
     @Test fun joinDark() = shoot("join-dark", dark) { JoinScreen(DuetSettings(), initial = "apple bana", onBack = {}) }
 
     @Config(qualifiers = "w891dp-h411dp-land-xxhdpi")
