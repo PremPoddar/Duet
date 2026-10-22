@@ -5,6 +5,7 @@ import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.SmartDisplay
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Close
 import com.prempoddar.duet.ui.design.PillTextField
 import com.prempoddar.duet.ui.design.EmptyState
 import com.prempoddar.duet.ui.design.BigButton
@@ -183,6 +184,11 @@ private fun YouTubeLinkDialog(onDismiss: () -> Unit, onAdded: () -> Unit) {
                     isError = link.isNotBlank() && !valid, modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Uri, autoCorrectEnabled = false),
                     supportingText = { if (link.isNotBlank() && !valid) Text("That doesn't look like a YouTube video or playlist link") },
+                    trailingIcon = {
+                        if (link.isNotEmpty()) androidx.compose.material3.IconButton(onClick = tap { link = "" }) {
+                            Icon(Icons.Rounded.Close, "Clear")
+                        }
+                    },
                 )
                 if (list != null && id != null) {
                     Row(verticalAlignment = Alignment.CenterVertically) {

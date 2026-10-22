@@ -288,7 +288,7 @@ fun SessionScreen(onAddSong: () -> Unit) {
 
     when (sheet) {
         Sheet.CODE -> ModalBottomSheet(onDismissRequest = { sheet = null }) { code?.let { CodeSheet(it) } }
-        Sheet.QUEUE -> ModalBottomSheet(onDismissRequest = { sheet = null }) { QueueSheet(state.queue, state.index, state.votes) }
+        Sheet.QUEUE -> ModalBottomSheet(onDismissRequest = { sheet = null }) { QueueSheet(state.queue, state.index, state.votes, state.playing) }
         Sheet.LYRICS -> ModalBottomSheet(onDismissRequest = { sheet = null }) { LyricsSheet(track?.lyrics.orEmpty()) { session?.let { state.positionAt(it.hostNow()) } ?: 0 } }
         Sheet.CHAT -> ModalBottomSheet(onDismissRequest = { sheet = null }) { ChatSheet() }
         Sheet.PEOPLE -> ModalBottomSheet(onDismissRequest = { sheet = null }) {
@@ -435,81 +435,6 @@ private fun qr(text: String, size: Int = 600): ImageBitmap {
     val m = QRCodeWriter().encode(text, BarcodeFormat.QR_CODE, size, size, mapOf(EncodeHintType.MARGIN to 0))
     val px = IntArray(size * size) { i -> if (m[i % size, i / size]) 0xFF2B1E16.toInt() else 0 }
     return Bitmap.createBitmap(px, size, size, Bitmap.Config.ARGB_8888).asImageBitmap()
-}
-
-@Composable
-private fun QueueSheet(queue: List<TrackMeta>, index: Int, votes: Map<String, List<String>> = emptyMap()) {
-    val warm = LocalWarm.current
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val scope = rememberCoroutineScope()
-    val session = AppGraph.sessions.session
-    val store = AppGraph.sessions.store
-    val myId = session?.myId
-    // Redrawn as songs arrive, so their Save option turns on.
-    val arriving by AppGraph.sessions.progress.collectAsStateWithLifecycle()
-    // Songs others added that have arrived here; one's own songs are already on this phone.
-    val saveable = remember(queue, arriving) { queue.filter { it.owner != myId && store.has(it.id) } }
-    fun save(songs: List<TrackMeta>) = scope.launch {
-        val saved = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            songs.count { t -> store.file(t.id)?.let { com.prempoddar.duet.data.SaveToPhone.save(context, t, it) } == true }
-        }
-        val text = when {
-            saved == 0 -> "Couldn't save that to this phone"
-            songs.size == 1 -> "Saved to Music/Duet"
-            saved < songs.size -> "Saved $saved of ${songs.size} songs to Music/Duet"
-            else -> "Saved $saved songs to Music/Duet"
-        }
-        android.widget.Toast.makeText(context, text, android.widget.Toast.LENGTH_SHORT).show()
-    }
-    Column(Modifier.fillMaxWidth().heightIn(max = 560.dp).padding(bottom = 24.dp)) {
-        Row(Modifier.fillMaxWidth().padding(start = 24.dp, end = 12.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("Up next", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
-            if (saveable.size > 1) TextButton(onClick = tap { save(saveable) }) { Text("Save all to phone") }
-        }
-        if (queue.isEmpty()) Text("The queue is empty. Anyone can add songs from their own phone.", modifier = Modifier.padding(24.dp), color = warm.muted)
-        LazyColumn {
-            itemsIndexed(queue, key = { _, t -> t.id }) { i, t ->
-                var menu by remember { mutableStateOf(false) }
-                Box {
-                    Row(
-                        Modifier.fillMaxWidth().clickable { session?.command(Command.Jump(i)) }.background(if (i == index) warm.brick.copy(alpha = 0.1f) else Color.Transparent)
-                            .padding(horizontal = 24.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        val art = remember(t.id) { decodeArt(t.art) }
-                        Box(Modifier.size(44.dp).clip(MaterialTheme.shapes.small).background(warm.record), contentAlignment = Alignment.Center) {
-                            art?.let { Image(it, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize()) }
-                        }
-                        Spacer(Modifier.width(12.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(t.title, style = MaterialTheme.typography.titleMedium, color = if (i == index) warm.brick else MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(t.artist.ifBlank { time(t.durationMs) }, style = MaterialTheme.typography.bodySmall, color = warm.muted, maxLines = 1)
-                        }
-                        if (i == index) Text("NOW", style = MaterialTheme.typography.labelSmall, color = warm.brick)
-                        // Vote for an upcoming song to hear it sooner; tap again to take the vote back.
-                        if (i > index) {
-                            val voters = votes[t.id].orEmpty()
-                            val mineVote = session?.myId in voters
-                            TextButton(onClick = tap { session?.command(Command.Vote(t.id)) }) {
-                                Icon(if (mineVote) Icons.Rounded.ThumbUp else Icons.Rounded.ThumbUpOffAlt, if (mineVote) "Take back your vote" else "Vote for this song", tint = if (mineVote) warm.brick else warm.muted, modifier = Modifier.size(18.dp))
-                                if (voters.isNotEmpty()) Text(" ${voters.size}", color = warm.muted, style = MaterialTheme.typography.labelMedium)
-                            }
-                        }
-                        IconButton(onClick = tap { menu = true }) { Text("⋯") }
-                    }
-                    DropdownMenu(menu, onDismissRequest = { menu = false }) {
-                        if (i > index + 1) DropdownMenuItem(text = { Text("Play next") }, onClick = tap { menu = false; session?.command(Command.Move(i, index + 1)) })
-                        DropdownMenuItem(text = { Text("Remove") }, onClick = tap { menu = false; session?.command(Command.Remove(t.id)) })
-                        when {
-                            t.owner == myId || t.isStream -> Unit
-                            store.has(t.id) -> DropdownMenuItem(text = { Text("Save to phone") }, onClick = tap { menu = false; save(listOf(t)) })
-                            else -> DropdownMenuItem(text = { Text("Save to phone (still arriving)") }, enabled = false, onClick = tap {})
-                        }
-                    }
-                }
-            }
-        }
-    }
 }
 
 @Composable
