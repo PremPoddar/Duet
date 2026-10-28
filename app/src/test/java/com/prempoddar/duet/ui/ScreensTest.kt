@@ -4,6 +4,9 @@ import android.app.Application
 import android.graphics.Bitmap
 import androidx.compose.runtime.Composable
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.background
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.test.core.app.ApplicationProvider
@@ -60,7 +63,7 @@ open class ScreensTest {
         com.prempoddar.duet.core.TrackMeta(id.padEnd(16, '0'), title, artist, durationMs = ms, mime = "audio/mpeg", size = 1, owner = "x", digest = "", youtube = youtube)
 
     @Test fun queueDark() = shoot("queue-dark", dark) {
-        androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.background(androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow)) {
+        androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.fillMaxSize().background(androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow).padding(top = 24.dp)) {
             QueueSheet(
                 listOf(
                     song("a1", "Golden Hour", "The Lanterns", 214_000), song("a2", "Slow Tides", "Mira Vale", 248_000),
@@ -71,6 +74,30 @@ open class ScreensTest {
             )
         }
     }
+
+    /** A session in full swing: a song playing for three people, with chat waiting. Made-up data. */
+    private fun liveSession() {
+        val sessions = AppGraph.sessions
+        fun <T> flow(name: String) = @Suppress("UNCHECKED_CAST") (sessions.javaClass.getDeclaredField(name).apply { isAccessible = true }.get(sessions) as kotlinx.coroutines.flow.MutableStateFlow<T>)
+        val cover = javaClass.classLoader!!.getResourceAsStream("media/cover.jpg")!!.use { android.util.Base64.encodeToString(it.readBytes(), android.util.Base64.NO_WRAP) }
+        val playing = com.prempoddar.duet.core.TrackMeta("a1".padEnd(16, '0'), "Night Drive", "Neon Coast", durationMs = 215_000, mime = "audio/mpeg", size = 1, owner = "x", art = cover, digest = "",
+            lyrics = "[00:58.00]Headlights on the open road\n[01:04.00]Singing every word we know\n[01:10.00]Night drive, you and me")
+        // The song is already on this phone, so the screen shows it playing rather than arriving.
+        sessions.store.adopt(playing.id, File.createTempFile("song", ".mp3").apply { writeText("x") })
+        flow<com.prempoddar.duet.core.PlaybackState>("_state").value = com.prempoddar.duet.core.PlaybackState(
+            queue = listOf(playing, song("a2", "Slow Tides", "Mira Vale", 248_000), song("a3", "Paper Planes", "June & the Coast", 197_000)),
+            index = 0, positionMs = 74_000, anchor = 0, playing = true,
+        )
+        flow<List<com.prempoddar.duet.core.Member>>("_members").value = listOf(
+            com.prempoddar.duet.core.Member("h", "Asha", isHost = true, ready = true), com.prempoddar.duet.core.Member("b", "Ben", isHost = false, ready = true),
+        )
+        flow<List<com.prempoddar.duet.core.ChatLine>>("_chat").value = listOf(
+            com.prempoddar.duet.core.ChatLine("c1", "h", "Asha", "this one!! \uD83D\uDE0D", 1), com.prempoddar.duet.core.ChatLine("c2", "b", "Ben", "turn it up", 2),
+        )
+    }
+
+    @Test fun sessionDark() { liveSession(); shoot("session-dark", dark) { SessionScreen {} } }
+    @Test fun sessionLight() { liveSession(); shoot("session-light", light) { SessionScreen {} } }
 
     @Test fun joinDark() = shoot("join-dark", dark) { JoinScreen(DuetSettings(), initial = "apple bana", onBack = {}) }
 
