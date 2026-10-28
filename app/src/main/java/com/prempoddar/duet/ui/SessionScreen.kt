@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
@@ -253,15 +254,13 @@ fun SessionScreen(onAddSong: () -> Unit) {
                     IconButton(enabled = track != null, onClick = tap { session?.command(Command.Next) }) { Icon(Icons.Rounded.SkipNext, "Next", Modifier.size(36.dp)) }
                     ReactButton { session?.react(it) }
                 }
-                Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                    TextButton(onClick = tap { sheet = Sheet.QUEUE }) { Icon(Icons.AutoMirrored.Rounded.QueueMusic, null); Text("  Queue · ${state.queue.size}") }
-                    if (track?.lyrics != null) TextButton(onClick = tap { sheet = Sheet.LYRICS }) { Icon(Icons.Rounded.Lyrics, null); Text("  Lyrics") }
-                    TextButton(onClick = tap(onAddSong)) { Icon(Icons.Rounded.Add, null); Text("  Add") }
-                    TextButton(onClick = tap { sheet = Sheet.CHAT }) {
-                        Icon(Icons.Outlined.ChatBubbleOutline, null)
-                        val unread = (chat.size - seenChat).coerceAtLeast(0)
-                        Text(if (unread > 0) "  Chat · $unread" else "  Chat")
-                    }
+                // Equal shares of the width, icon over label, so all four fit on any phone.
+                Row(Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
+                    BarButton(Icons.AutoMirrored.Rounded.QueueMusic, "Queue · ${state.queue.size}") { sheet = Sheet.QUEUE }
+                    if (track?.lyrics != null) BarButton(Icons.Rounded.Lyrics, "Lyrics") { sheet = Sheet.LYRICS }
+                    BarButton(Icons.Rounded.Add, "Add", onAddSong)
+                    val unread = (chat.size - seenChat).coerceAtLeast(0)
+                    BarButton(Icons.Outlined.ChatBubbleOutline, if (unread > 0) "Chat · $unread" else "Chat") { sheet = Sheet.CHAT }
                 }
             }
     }
@@ -333,6 +332,16 @@ fun SessionScreen(onAddSong: () -> Unit) {
             },
             dismissButton = { TextButton(onClick = tap { confirmLeave = false }) { Text("Stay") } },
         )
+    }
+}
+
+@Composable
+private fun RowScope.BarButton(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit) {
+    TextButton(onClick = tap(onClick), modifier = Modifier.weight(1f), contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 6.dp)) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(icon, null)
+            Text(label, style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
+        }
     }
 }
 
