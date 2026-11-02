@@ -80,7 +80,7 @@ running slightly fast or slow is followed too. Pings stuck behind song data are 
 Five times a second each phone compares where the song *should* be with where its player is. Small
 drift is eased out by playing up to 1.5% faster or slower; only a large, lasting gap causes a jump,
 aimed ahead by however long a jump has been taking. A per-output **sync nudge** lines up Bluetooth
-headphones, which add 150 to 250 ms, and **Sync by ear** can measure it with the microphone.
+headphones, which add 150 to 250 ms.
 
 YouTube's embedded player reports its time late, so Duet watches for the moment the time changes and
 keeps the freshest reading; drift there is eased with a 5% speed change where YouTube allows it.
