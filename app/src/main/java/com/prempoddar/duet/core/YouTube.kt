@@ -43,7 +43,7 @@ object YouTube {
     const val PLAYLIST_LIMIT = 100
 
     /** A queue entry for [videoId]; its id is derived from the video, so adding it twice is the same entry. */
-    fun track(videoId: String, title: String, channel: String, owner: String) = TrackMeta(
+    fun track(videoId: String, title: String, channel: String, owner: String, art: String? = null) = TrackMeta(
         id = MessageDigest.getInstance("SHA-256").digest("youtube:$videoId".toByteArray()).joinToString("") { "%02x".format(it) }.take(16),
         title = title.ifBlank { "YouTube video" }.take(200),
         artist = channel.take(120),
@@ -53,5 +53,6 @@ object YouTube {
         owner = owner,
         digest = "",
         youtube = videoId,
+        art = art,
     )
 }

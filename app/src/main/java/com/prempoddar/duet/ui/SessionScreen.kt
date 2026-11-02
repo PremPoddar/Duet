@@ -183,12 +183,17 @@ fun SessionScreen(onAddSong: () -> Unit) {
                     val context = androidx.compose.ui.platform.LocalContext.current
                     val problem by com.prempoddar.duet.play.YouTubePlayer.error.collectAsStateWithLifecycle()
                     Column(Modifier.fillMaxWidth(0.95f), horizontalAlignment = Alignment.CenterHorizontally) {
-                        androidx.compose.ui.viewinterop.AndroidView(
-                            factory = { com.prempoddar.duet.play.YouTubePlayer.view(context).also { (it.parent as? android.view.ViewGroup)?.removeView(it) } },
-                            onRelease = { (it.parent as? android.view.ViewGroup)?.removeView(it) },
-                            // Not clipped: video is drawn on its own layer, which a rounded clip hides entirely.
-                            modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f),
-                        )
+                        val moving by com.prempoddar.duet.play.YouTubePlayer.isPlaying.collectAsStateWithLifecycle()
+                        Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f)) {
+                            androidx.compose.ui.viewinterop.AndroidView(
+                                factory = { com.prempoddar.duet.play.YouTubePlayer.view(context).also { (it.parent as? android.view.ViewGroup)?.removeView(it) } },
+                                onRelease = { (it.parent as? android.view.ViewGroup)?.removeView(it) },
+                                // Not clipped: video is drawn on its own layer, which a rounded clip hides entirely.
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                            // The thumbnail covers the player's black box while it loads, buffers or is paused.
+                            if (!moving) art?.let { Image(it, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize()) }
+                        }
                         problem?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 8.dp)) }
                     }
                 } else {

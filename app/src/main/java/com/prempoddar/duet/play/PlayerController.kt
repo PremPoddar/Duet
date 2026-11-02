@@ -1,42 +1,43 @@
 package com.prempoddar.duet.play
 
 import android.content.Context
+import android.media.AudioAttributes
 import android.media.AudioDeviceInfo
+import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.os.Handler
 import android.os.Looper
-import android.util.Base64
-import androidx.media3.common.AudioAttributes
-import androidx.media3.common.C
-import androidx.media3.common.MediaItem
-import androidx.media3.common.MediaMetadata
-import androidx.media3.common.PlaybackParameters
-import androidx.media3.common.Player
-import androidx.media3.exoplayer.ExoPlayer
 import com.prempoddar.duet.core.Command
+import com.prempoddar.duet.core.PlaybackState
+import com.prempoddar.duet.core.TrackMeta
 import com.prempoddar.duet.data.DuetSettings
 import com.prempoddar.duet.data.Output
 import com.prempoddar.duet.session.SessionManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import java.io.File
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Executors
 
 /**
- * Plays the shared song on this phone and keeps it on the shared position: every 200 ms it
- * compares where the song should be (host time + nudge for this output) with where it is.
+ * Plays the shared song on this phone and keeps it on the shared position. Songs sent between the
+ * phones are decoded once and played by [Engine], which matches them to the shared clock sample by
+ * sample; YouTube videos and other apps' songs are checked every 200 ms.
  */
 class PlayerController(private val context: Context, private val sessions: SessionManager) {
-    val player: ExoPlayer = ExoPlayer.Builder(context)
-        .setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MUSIC).build(), true)
-        .setHandleAudioBecomingNoisy(false)
-        .build()
+    /** What the lock screen and notification show. */
+    val player = SharedPlayer()
+    private val engine = Engine()
     private val handler = Handler(Looper.getMainLooper())
     private val audio = context.getSystemService(AudioManager::class.java)
-    private var loaded: String? = null
     private var endedSent: String? = null
-    private var lastSpeed = 1f
-    private val sync = com.prempoddar.duet.core.SyncController { android.os.SystemClock.elapsedRealtime() }
     @Volatile var settings = DuetSettings()
+
+    private val pcmDir = File(context.cacheDir, "pcm")
+    private val decoder = Executors.newSingleThreadExecutor()
+    private val decoded = ConcurrentHashMap<String, Pcm>()
+    private val decoding = ConcurrentHashMap.newKeySet<String>()
 
     private val _drift = MutableStateFlow(0L)
     /** How far off the shared position this phone is, for the sync indicator. */
@@ -52,6 +53,7 @@ class PlayerController(private val context: Context, private val sessions: Sessi
     }
 
     fun start() {
+        engine.start()
         handler.removeCallbacks(loop)
         handler.post(loop)
     }
@@ -62,92 +64,109 @@ class PlayerController(private val context: Context, private val sessions: Sessi
         val st = sessions.state.value
         val track = st.current
         if (session == null || track == null) {
-            if (loaded != null) {
-                player.stop(); player.clearMediaItems(); loaded = null
-            }
+            engine.want = null
+            focus(false)
+            player.show(null, false) { 0 }
             YouTubePlayer.stop()
             return
         }
+        player.show(track.takeIf { it.external == null }, st.playing) { st.positionAt(session.hostNow()) }
+        if (moveOf(st) != shownMove) { shownMove = moveOf(st); player.moved() }
+        if (track.isStream) focus(false)
         if (track.external != null) {
             YouTubePlayer.stop()
-            if (loaded != null) { player.stop(); player.clearMediaItems(); loaded = null }
+            engine.want = null
             externalStep(session, st, track)
             return
         }
         if (track.isStream) {
+            engine.want = null
             streamStep(session, st, track)
             return
         }
         YouTubePlayer.stop()
-        if (loaded != track.id) {
-            val file = sessions.store.file(track.id)
-            if (file == null) {
-                // Still arriving; the others carry on and we join in when it's here.
-                if (player.isPlaying) player.pause()
-                return
-            }
-            // Loaded paused: ExoPlayer would otherwise start the new song from 0:00 by itself,
-            // skipping the aligned start below and leaving it off by however long loading took.
-            player.playWhenReady = false
-            val art = track.art?.let { runCatching { Base64.decode(it, Base64.NO_WRAP) }.getOrNull() }
-            player.setMediaItem(
-                MediaItem.Builder().setUri(android.net.Uri.fromFile(file)).setMediaId(track.id)
-                    .setMediaMetadata(
-                        MediaMetadata.Builder().setTitle(track.title).setArtist(track.artist).setAlbumTitle(track.album)
-                            .apply { if (art != null) setArtworkData(art, MediaMetadata.PICTURE_TYPE_FRONT_COVER) }.build(),
-                    ).build(),
-            )
-            player.prepare()
-            loaded = track.id
+        st.queue.getOrNull(st.index + 1)?.let { prepare(it) }
+        val pcm = prepare(track)
+        if (pcm == null) {
+            // Still arriving or being decoded; the others carry on and we join in when it's here.
+            engine.want = null
+            return
         }
-        if (player.playbackState != Player.STATE_READY && player.playbackState != Player.STATE_ENDED) return
-
         val nudge = settings.nudge(_output.value)
+        aim(session, st, track, pcm, nudge.toLong())
+        focus(st.playing)
+        if (!st.playing) { _drift.value = 0; return }
+        _drift.value = engine.driftMs.toLong()
         val target = st.positionAt(session.hostNow()) + nudge
-        if (!st.playing) {
-            if (player.isPlaying) player.pause()
-            if (kotlin.math.abs(player.currentPosition - target) > com.prempoddar.duet.core.SyncController.SEEK_OVER_MS) player.seekTo(target.coerceAtLeast(0))
-            setSpeed(1f)
-            _drift.value = 0
-            return
+        if (target >= track.durationMs - END_MARGIN_MS && endedSent != track.id) {
+            endedSent = track.id
+            session.command(Command.Ended(track.id))
         }
-        if (target >= track.durationMs - END_MARGIN_MS || player.playbackState == Player.STATE_ENDED) {
-            if (endedSent != track.id) {
-                endedSent = track.id
-                session.command(Command.Ended(track.id))
-            }
-            return
-        }
-        if (!player.isPlaying) {
-            // Start a little ahead: sound comes out a moment after play() is called.
-            setSpeed(1f)
-            player.seekTo((target + sync.startLeadMs).coerceAtLeast(0))
-            player.play()
-            sync.started()
-            lastMove = moveOf(st)
-            return
-        }
-        // Someone jumped, skipped back to the start or scrubbed: every phone lines up at once
-        // rather than waiting for the drift readings to notice.
-        if (moveOf(st) != lastMove) {
-            lastMove = moveOf(st)
-            if (kotlin.math.abs(target - player.currentPosition) > MOVE_REALIGN_MS) {
-                setSpeed(1f)
-                player.seekTo((target + sync.startLeadMs).coerceAtLeast(0))
-                sync.started()
-                return
-            }
-        }
-        when (val a = sync.step(target, player.currentPosition)) {
-            com.prempoddar.duet.core.SyncController.Action.None -> Unit
-            is com.prempoddar.duet.core.SyncController.Action.Speed -> setSpeed(a.speed)
-            is com.prempoddar.duet.core.SyncController.Action.Seek -> {
-                setSpeed(1f)
-                player.seekTo((target + a.aheadMs).coerceAtLeast(0))
-            }
-        }
-        _drift.value = sync.drift
     }
+
+    private var aimedAt: Any? = null
+    private var aimedNs = 0L
+
+    /**
+     * Tells the engine where the song should be at any moment. The shared clock is read once and
+     * carried forward with this phone's own precise clock, and read again now and then as the
+     * estimate of the host's clock is refined.
+     */
+    private fun aim(session: com.prempoddar.duet.core.Session, st: PlaybackState, track: TrackMeta, pcm: Pcm, nudge: Long) {
+        val key = Triple(st, nudge, pcm.id)
+        val now = System.nanoTime()
+        if (key == aimedAt && now - aimedNs < REAIM_NS) return
+        aimedAt = key; aimedNs = now
+        val host = session.hostNow().toDouble()
+        val length = track.durationMs.toDouble()
+        engine.want = Engine.Want(pcm, st.playing) { n ->
+            val h = host + (n - now) / 1e6
+            val pos = if (st.playing) st.positionMs + (h - st.anchor) else st.positionMs.toDouble()
+            (if (length > 0) pos.coerceIn(0.0, length) else pos.coerceAtLeast(0.0)) + nudge
+        }
+    }
+
+    /** The song ready to play, or null while it's decoded in the background (starting that if needed). */
+    private fun prepare(track: TrackMeta): Pcm? {
+        if (track.isStream) return null
+        decoded[track.id]?.let { return it }
+        val file = sessions.store.file(track.id) ?: return null
+        if (decoding.add(track.id)) decoder.execute {
+            try {
+                pcmDir.mkdirs()
+                decoded[track.id] = Pcm.decode(track.id, file, File(pcmDir, track.id))
+                tidy()
+            } catch (e: Exception) {
+                android.util.Log.w("DuetEngine", "couldn't decode ${track.title}", e)
+            } finally {
+                decoding.remove(track.id)
+            }
+        }
+        return null
+    }
+
+    /** Decoded songs take room: only the current and next are kept. */
+    private fun tidy() {
+        val st = sessions.state.value
+        val keep = setOfNotNull(st.current?.id, st.queue.getOrNull(st.index + 1)?.id)
+        decoded.keys.filter { it !in keep }.forEach { decoded.remove(it) }
+        pcmDir.listFiles()?.filter { it.name !in keep && !it.name.endsWith(".part") }?.forEach { it.delete() }
+    }
+
+    private val focusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+        .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build())
+        .setOnAudioFocusChangeListener { }
+        .build()
+    private var focused = false
+
+    /** Other apps' music stops while Duet plays; the shared session decides when Duet itself stops. */
+    private fun focus(want: Boolean) {
+        if (want == focused) return
+        focused = want
+        if (want) audio.requestAudioFocus(focusRequest) else audio.abandonAudioFocusRequest(focusRequest)
+    }
+
+    private var shownMove: Triple<String?, Long, Long>? = null
 
     /** The shared state's last jump (its song, anchor and position), to notice the next one. */
     private var lastMove: Triple<String?, Long, Long>? = null
@@ -163,7 +182,6 @@ class PlayerController(private val context: Context, private val sessions: Sessi
      * jumping, and only when it is large enough to hear and not more than every few seconds.
      */
     private fun streamStep(session: com.prempoddar.duet.core.Session, st: com.prempoddar.duet.core.PlaybackState, track: com.prempoddar.duet.core.TrackMeta) {
-        if (loaded != null) { player.stop(); player.clearMediaItems(); loaded = null }
         val yt = YouTubePlayer
         val now = android.os.SystemClock.elapsedRealtime()
         val target = st.positionAt(session.hostNow()) + settings.nudge(_output.value)
@@ -254,12 +272,6 @@ class PlayerController(private val context: Context, private val sessions: Sessi
         }
     }
 
-    private fun setSpeed(speed: Float) {
-        if (speed == lastSpeed) return
-        lastSpeed = speed
-        player.playbackParameters = PlaybackParameters(speed)
-    }
-
     private fun currentOutput(): Output {
         val devices = audio.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
         return when {
@@ -279,6 +291,7 @@ class PlayerController(private val context: Context, private val sessions: Sessi
         private const val MAX_STREAM_LEAD_MS = 2_000L
         private const val STREAM_SEEK_GAP_MS = 4_000L
         private const val END_MARGIN_MS = 150L
+        private const val REAIM_NS = 2_000_000_000L
         /** After a shared jump, anything further off than this is lined up straight away. */
         private const val MOVE_REALIGN_MS = 150L
         private val BT = setOf(AudioDeviceInfo.TYPE_BLUETOOTH_A2DP, AudioDeviceInfo.TYPE_HEARING_AID, 26, 27)

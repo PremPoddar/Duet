@@ -163,10 +163,8 @@ fun time(ms: Long): String {
 private fun YouTubeLinkDialog(onDismiss: () -> Unit, onAdded: () -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
-    val clip = remember {
-        runCatching { context.getSystemService(android.content.ClipboardManager::class.java).primaryClip?.getItemAt(0)?.text?.toString() }.getOrNull()
-    }
-    var link by remember { mutableStateOf(clip?.takeIf { com.prempoddar.duet.core.YouTube.videoId(it) != null || com.prempoddar.duet.core.YouTube.playlistId(it) != null }.orEmpty()) }
+    // Always starts empty: an old link from last time is never what's wanted.
+    var link by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf<String?>(null) }
     val id = com.prempoddar.duet.core.YouTube.videoId(link)
     val list = com.prempoddar.duet.core.YouTube.playlistId(link)
@@ -216,7 +214,8 @@ private fun YouTubeLinkDialog(onDismiss: () -> Unit, onAdded: () -> Unit) {
                     ids.forEachIndexed { i, v ->
                         if (ids.size > 1) busy = "Adding ${i + 1} of ${ids.size}…"
                         val (title, channel) = withContext(Dispatchers.IO) { youTubeTitle(v) }
-                        AppGraph.sessions.addStream(com.prempoddar.duet.core.YouTube.track(v, title, channel, me))
+                        val art = withContext(Dispatchers.IO) { youTubeThumbnail(v) }
+                        AppGraph.sessions.addStream(com.prempoddar.duet.core.YouTube.track(v, title, channel, me, art))
                     }
                     busy = null
                     if (ids.size > 1) android.widget.Toast.makeText(context, "Added ${ids.size} videos", android.widget.Toast.LENGTH_SHORT).show()
@@ -227,6 +226,19 @@ private fun YouTubeLinkDialog(onDismiss: () -> Unit, onAdded: () -> Unit) {
         dismissButton = { androidx.compose.material3.TextButton(onClick = tap(onDismiss)) { Text("Cancel") } },
     )
 }
+
+/**
+ * The video's thumbnail (16:9, from YouTube's public image server) as a small JPEG, shown in the
+ * queue and over the player while the video isn't playing; null if it can't be fetched.
+ */
+private fun youTubeThumbnail(id: String): String? = runCatching {
+    val conn = (java.net.URL("https://i.ytimg.com/vi/$id/mqdefault.jpg").openConnection() as java.net.HttpURLConnection).apply { connectTimeout = 6_000; readTimeout = 6_000 }
+    val bytes = try { conn.inputStream.readBytes() } finally { conn.disconnect() }
+    val bmp = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return null
+    val out = java.io.ByteArrayOutputStream()
+    bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 80, out)
+    android.util.Base64.encodeToString(out.toByteArray(), android.util.Base64.NO_WRAP)
+}.getOrNull()
 
 /** The video's title and channel from YouTube's oEmbed endpoint, or blanks if it can't be reached. */
 private fun youTubeTitle(id: String): Pair<String, String> = runCatching {

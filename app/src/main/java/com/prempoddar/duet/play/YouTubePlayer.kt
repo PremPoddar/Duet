@@ -34,6 +34,9 @@ object YouTubePlayer {
     val error: StateFlow<String?> = _error.asStateFlow()
 
     val playing get() = state == PLAYING
+    private val _isPlaying = MutableStateFlow(false)
+    /** Whether the video is actually moving, for showing its thumbnail in its place until it is. */
+    val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
     val ended get() = state == ENDED
 
     private val estimate = com.prempoddar.duet.core.StreamClock()
@@ -67,7 +70,7 @@ object YouTubePlayer {
     }
 
     fun load(id: String, startMs: Long, play: Boolean) {
-        videoId = id; state = UNSTARTED; reportedMs = startMs; reportedAt = SystemClock.elapsedRealtime(); estimate.reset()
+        videoId = id; state = UNSTARTED; _isPlaying.value = false; reportedMs = startMs; reportedAt = SystemClock.elapsedRealtime(); estimate.reset()
         rate = 1.0; estimate.setRate(1.0)
         _durationMs.value = 0; _error.value = null
         val seconds = startMs / 1000.0
@@ -131,6 +134,7 @@ object YouTubePlayer {
             if (s != state || s != PLAYING) estimate.reset()
             if (s == PLAYING) estimate.add(now, ms)
             reportedMs = ms; reportedAt = now; state = s
+            _isPlaying.value = s == PLAYING
             if (duration > 0) _durationMs.value = duration
         }
         /** What speed the player says it's at after being asked for [asked]. */
