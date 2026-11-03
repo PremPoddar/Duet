@@ -11,7 +11,7 @@
 [![Website](https://img.shields.io/badge/Website-prempoddar.github.io%2FDuet-E97A5C)](https://prempoddar.github.io/Duet/)
 [![Latest release](https://img.shields.io/github/v/release/PremPoddar/Duet?label=Download&logo=android&logoColor=white&color=E97A5C)](https://github.com/PremPoddar/Duet/releases/latest)
 
-**[Website](https://prempoddar.github.io/Duet/)** · **[Download APK](https://github.com/PremPoddar/Duet/releases/latest)** · **[Privacy](https://prempoddar.github.io/Duet/privacy/)** · **[Report a problem](https://github.com/PremPoddar/Duet/issues)**
+**[Website](https://prempoddar.github.io/Duet/)** · **[Download APK](https://github.com/PremPoddar/Duet/releases/latest)** · **[F-Droid repo](https://prempoddar.github.io/fdroid/repo?fingerprint=B22CDB8846EA991100C5D8DD2CBB893AF2C51B72406210B94B9F8C9B539E8BF6)** · **[Privacy](https://prempoddar.github.io/Duet/privacy/)** · **[Report a problem](https://github.com/PremPoddar/Duet/issues)**
 
 </div>
 
