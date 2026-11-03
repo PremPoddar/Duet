@@ -1,0 +1,15 @@
+<p><b>Listen to music together with up to seven other people, on the same couch or in different cities.</b></p>
+<p>Start a session and Duet gives you six words. Read them out on a call, let someone scan the code, or send the link. Pick a song from your phone, a YouTube video or a whole playlist, and it plays on everyone's phone at the same moment. Anyone can pause, skip, seek, vote or add their own songs.</p>
+<ul>
+<li><b>In sync</b> to within a few milliseconds, and kept there: each phone eases its own speed instead of jumping.</li>
+<li><b>Anywhere:</b> phones connect directly to each other. No account.</li>
+<li><b>Same room:</b> on the same Wi-Fi, sessions show up by themselves and work with no internet at all.</li>
+<li><b>YouTube:</b> play a video or a whole playlist together.</li>
+<li><b>Play along</b> with a song playing in another music app on each phone.</li>
+<li><b>Shared queue:</b> everyone adds songs from their own phone and votes the next one up.</li>
+<li><b>Synced lyrics</b> from the songs' own files.</li>
+<li><b>Hand over</b> the session to someone else when you leave, and the music carries on.</li>
+<li><b>Chat and reactions</b>, and lock screen controls.</li>
+<li><b>Appearance:</b> light, dark, dusk or OLED black, Material You, fonts, shapes and haptics.</li>
+</ul>
+<p>Over the internet, phones find each other through a public MQTT relay (HiveMQ) with messages sealed by a key from the six words, and use Google's STUN servers to connect directly. YouTube videos play through YouTube's player.</p>

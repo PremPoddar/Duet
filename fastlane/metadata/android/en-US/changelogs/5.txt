@@ -1,0 +1,4 @@
+• Songs you send play through a new sample-accurate engine, so every phone lands on the same beat and stays there.
+• YouTube thumbnails in the queue.
+• Sync by ear removed, along with the microphone permission.
+• Website and contact links in About.
