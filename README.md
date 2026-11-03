@@ -9,8 +9,9 @@
 [![WebRTC](https://img.shields.io/badge/WebRTC-peer--to--peer-333333?logo=webrtc&logoColor=white)](https://webrtc.org)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue)](LICENSE)
 [![Website](https://img.shields.io/badge/Website-prempoddar.github.io%2FDuet-E97A5C)](https://prempoddar.github.io/Duet/)
+[![Latest release](https://img.shields.io/github/v/release/PremPoddar/Duet?label=Download&logo=android&logoColor=white&color=E97A5C)](https://github.com/PremPoddar/Duet/releases/latest)
 
-**[Website](https://prempoddar.github.io/Duet/)** · **[Download](https://github.com/PremPoddar/Duet/releases)** · **[Privacy](https://prempoddar.github.io/Duet/privacy/)** · **[Report a problem](https://github.com/PremPoddar/Duet/issues)**
+**[Website](https://prempoddar.github.io/Duet/)** · **[Download APK](https://github.com/PremPoddar/Duet/releases/latest)** · **[Privacy](https://prempoddar.github.io/Duet/privacy/)** · **[Report a problem](https://github.com/PremPoddar/Duet/issues)**
 
 </div>
 
