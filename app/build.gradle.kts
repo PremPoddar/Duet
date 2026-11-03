@@ -24,8 +24,8 @@ android {
         applicationId = "com.prempoddar.duet"
         minSdk = 29
         targetSdk = 36
-        versionCode = 5
-        versionName = "2.0.1"
+        versionCode = 6
+        versionName = "2.0.2"
     }
 
     signingConfigs {
@@ -43,6 +43,10 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            // Reproducible: F-Droid rebuilds this and checks it matches the APK on GitHub byte for
+            // byte, so leave out anything that depends on the machine (PNG crunching, git state).
+            isCrunchPngs = false
+            vcsInfo.include = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
@@ -59,6 +63,13 @@ android {
             isShrinkResources = false
             matchingFallbacks += listOf("release")
         }
+    }
+
+    // Google's encrypted dependency list in the APK's signing block can't be reproduced or read;
+    // Play still gets it from the bundle.
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = true
     }
 
     compileOptions {
@@ -81,6 +92,12 @@ android {
             excludes += setOf("META-INF/versions/9/OSGI-INF/MANIFEST.MF", "META-INF/*.kotlin_module")
         }
     }
+}
+
+// Baseline profiles can come out slightly different from one build to the next, which F-Droid's
+// byte-for-byte check can't allow, so APKs go without them; the Play bundle keeps them.
+tasks.configureEach {
+    if (name.contains("ArtProfile") && gradle.startParameter.taskNames.none { it.contains("bundle", ignoreCase = true) }) enabled = false
 }
 
 dependencies {
