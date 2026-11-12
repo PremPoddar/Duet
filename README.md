@@ -8,10 +8,10 @@
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.1-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org)
 [![WebRTC](https://img.shields.io/badge/WebRTC-peer--to--peer-333333?logo=webrtc&logoColor=white)](https://webrtc.org)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue)](LICENSE)
-[![Website](https://img.shields.io/badge/Website-prempoddar.github.io%2FDuet-E97A5C)](https://prempoddar.github.io/Duet/)
+[![Website](https://img.shields.io/badge/Website-prempoddar.is-a.dev%2FDuet-E97A5C)](https://prempoddar.is-a.dev/Duet/)
 [![Latest release](https://img.shields.io/github/v/release/PremPoddar/Duet?label=Download&logo=android&logoColor=white&color=E97A5C)](https://github.com/PremPoddar/Duet/releases/latest)
 
-**[Website](https://prempoddar.github.io/Duet/)** · **[Download APK](https://github.com/PremPoddar/Duet/releases/latest)** · **[F-Droid repo](https://prempoddar.github.io/fdroid/repo?fingerprint=B22CDB8846EA991100C5D8DD2CBB893AF2C51B72406210B94B9F8C9B539E8BF6)** · **[Privacy](https://prempoddar.github.io/Duet/privacy/)** · **[Report a problem](https://github.com/PremPoddar/Duet/issues)**
+**[Website](https://prempoddar.is-a.dev/Duet/)** · **[Download APK](https://github.com/PremPoddar/Duet/releases/latest)** · **[F-Droid repo](https://prempoddar.is-a.dev/fdroid/repo?fingerprint=B22CDB8846EA991100C5D8DD2CBB893AF2C51B72406210B94B9F8C9B539E8BF6)** · **[Privacy](https://prempoddar.is-a.dev/Duet/privacy/)** · **[Report a problem](https://github.com/PremPoddar/Duet/issues)**
 
 </div>
 
@@ -96,7 +96,7 @@ and deleted when the session ends.
 
 No account and no server of ours. Music goes directly between the phones, encrypted. The relay that
 helps phones find each other only sees sealed, unreadable data. Full policy:
-**[prempoddar.github.io/Duet/privacy](https://prempoddar.github.io/Duet/privacy/)**.
+**[prempoddar.is-a.dev/Duet/privacy](https://prempoddar.is-a.dev/Duet/privacy/)**.
 
 ## 🛠️ Building and testing
 
